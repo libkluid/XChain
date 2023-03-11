@@ -8,7 +8,7 @@ pub trait Channel {
 #[cfg(test)]
 mod tests {
     use serde_json;
-    use crate::jsonrpc::{JsonRpc, Id, Params};
+    use crate::jsonrpc::{JsonRpc, Id};
 
     #[test]
     fn test_channel() {
@@ -20,7 +20,7 @@ mod tests {
             }
         }
 
-        let jsonrpc = JsonRpc::format(Id::Num(1), "test", Params::None);
+        let jsonrpc = JsonRpc::format(Id::Num(1), "test", json!(null));
         let json = TestChannel::send(jsonrpc);
         assert_eq!(json, r#"{"jsonrpc":"2.0","method":"test","params":null,"id":1}"#);
     }

@@ -33,7 +33,7 @@ impl Channel for HttpChannel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::jsonrpc::{JsonRpc, Id, Params};
+    use crate::jsonrpc::{JsonRpc, Id};
 
     #[tokio::test]
     async fn requests_ethereum_block_number() {
@@ -43,7 +43,7 @@ mod tests {
         let jsonrpc = JsonRpc::format(
             Id::Num(1),
             "eth_blockNumber",
-            Params::None,
+            json!(null),
         );
 
         let result = http.send(&jsonrpc)

@@ -1,7 +1,11 @@
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("Hex decode error: {0}")]
+    HexDecodeError(String),
+
     #[error("JsonRpc error: {0}")]
     JsonRpcError(serde_json::Value),
+
     #[error("Unhandled error: {0}")]
     UnahandledError(Box<dyn std::error::Error>),
 }

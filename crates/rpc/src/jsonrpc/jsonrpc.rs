@@ -1,24 +1,26 @@
 use serde::Serialize;
-use crate::jsonrpc::{Id, Params};
+use serde_json::Value;
+use crate::jsonrpc::Id;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct JsonRpc {
     pub jsonrpc: &'static str,
     pub method: &'static str,
-    pub params: Params,
+    pub params: Value,
     pub id: Id,
 }
 
 impl JsonRpc {
-    pub fn format<P>(id: Id, method: &'static str, params: P) -> Self
+    pub fn format<I, P>(id: I, method: &'static str, params: P) -> Self
     where
-        P: Into<Params>,
+        I: Into<Id>,
+        P: Into<Value>,
     {
         Self {
             jsonrpc: "2.0",
             method,
             params: params.into(),
-            id,
+            id: id.into(),
         }
     }
 }
