@@ -11,5 +11,6 @@ pub use value::Value;
 
 mod decode;
 mod decoder;
+mod encoder;
 mod grammar;
 mod value;

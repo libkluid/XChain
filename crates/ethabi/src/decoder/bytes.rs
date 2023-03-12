@@ -29,7 +29,8 @@ impl sealed::Decoder for DynamicBytesDeocder {
 
     fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value {
         let frame = &bytes[offset..];
-        let head = UIntDecoder::new(256).decode_frame(frame, 0).to_uint().expect("head is uint");
+        let head = UIntDecoder::new(256).decode_frame(frame, 0);
+        let head = head.as_uint().expect("head is uint");
         let length = head.to_usize().unwrap();
 
         let frame = &frame[32..];

@@ -18,7 +18,8 @@ impl sealed::Decoder for HeadTailDecoder {
     fn is_dynamic(&self) -> bool { true }
 
     fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value {
-        let head = UIntDecoder::new(256).decode_frame(bytes, offset).to_uint().expect("head is uint");
+        let head = UIntDecoder::new(256).decode_frame(bytes, offset);
+        let head = head.as_uint().expect("head is uint");
         let frame_base = head.to_usize().unwrap();
         self.decoder.decode_frame(bytes, frame_base)
     }

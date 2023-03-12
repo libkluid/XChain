@@ -13,44 +13,58 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn to_address(&self) -> Option<String> {
+    pub fn as_address(&self) -> Option<&str> {
         match self {
-            Value::Address(address) => Some(address.clone()),
+            Value::Address(address) => Some(address),
             _ => None,
         }
     }
 
-    pub fn to_int(&self) -> Option<BigInt> {
+    pub fn as_int(&self) -> Option<&BigInt> {
         match self {
-            Value::Int(int) => Some(int.clone()),
+            Value::Int(int) => Some(int),
             _ => None,
         }
     }
 
-    pub fn to_uint(&self) -> Option<BigUint> {
+    pub fn as_uint(&self) -> Option<&BigUint> {
         match self {
-            Value::UInt(uint) => Some(uint.clone()),
+            Value::UInt(uint) => Some(uint),
             _ => None,
         }
     }
 
-    pub fn to_bytes(&self) -> Option<Vec<u8>> {
+    pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
-            Value::Bytes(bytes) => Some(bytes.clone()),
+            Value::Bytes(bytes) => Some(bytes),
             _ => None,
         }
     }
 
-    pub fn to_string(&self) -> Option<String> {
+    pub fn as_string(&self) -> Option<&str> {
         match self {
-            Value::String(string) => Some(string.clone()),
+            Value::String(string) => Some(string),
             _ => None,
         }
     }
 
-    pub fn to_array(&self) -> Option<Vec<Value>> {
+    pub fn as_array(&self) -> Option<&[Value]> {
         match self {
-            Value::Array(array) => Some(array.clone()),
+            Value::Array(array) => Some(array),
+            _ => None,
+        }
+    }
+
+    pub fn as_tuple(&self) -> Option<&[Value]> {
+        match self {
+            Value::Tuple(tuple) => Some(tuple),
+            _ => None,
+        }
+    }
+
+    pub fn as_boolean(&self) -> Option<&bool> {
+        match self {
+            Value::Boolean(boolean) => Some(boolean),
             _ => None,
         }
     }
