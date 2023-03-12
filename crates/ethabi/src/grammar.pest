@@ -1,0 +1,21 @@
+WHITESPACE = _{ " " | "\n" | "\t" }
+Type       =  { TupleType | BasicType }
+
+TupleType =  { Components ~ Array? }
+
+Components   = _{ NonZeroTuple | ZeroTuple }
+NonZeroTuple =  { "(" ~ Type ~ NextType* ~ ")" }
+NextType     = _{ "," ~ Type }
+ZeroTuple    =  { "()" }
+
+BasicType =  { Base ~ Sub? ~ Array? }
+Base      =  { Alphas }
+Sub       =  { TwoSize | Digits }
+TwoSize   =  { Digits ~ "x" ~ Digits }
+
+Array        =  { ( ConstArray | DynamicArray )+ }
+ConstArray   =  { "[" ~ Digits ~ "]" }
+DynamicArray = @{ "[]" }
+
+Alphas = @{ ASCII_ALPHA+ }
+Digits =  { ASCII_NONZERO_DIGIT ~ ASCII_DIGIT* }
