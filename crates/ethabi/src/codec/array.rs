@@ -1,95 +1,111 @@
 use num_traits::ToPrimitive;
 use crate::codec::sealed;
-use crate::Value;
 use crate::codec::{Codec, Encoder};
 use crate::codec::UIntCodec;
+use crate::{Value, Error};
 
 pub struct FixedArrayCodec {
+    name: String,
     size: usize,
     codec: Box<dyn Codec>
 }
 
 impl FixedArrayCodec {
     pub fn new(size: usize, codec: Box<dyn Codec>) -> Self {
-        Self { size, codec }
+        let name = format!("{}[{}]", codec.name(), size);
+        Self { name, size, codec }
     }
 }
 
 impl sealed::AbiType for FixedArrayCodec {
+    fn name(&self) -> &str { &self.name }
     fn is_dynamic(&self) -> bool { self.codec.is_dynamic() }
 }
 
 impl sealed::Encoder for FixedArrayCodec {
-    fn encode_frame(&self, value: &Value) -> Vec<u8> {
-        let values = value.as_array().expect("Expected array");
-        assert!(values.len() == self.size);
+    fn encode_frame(&self, value: &Value) -> Result<Vec<u8>, Error> {
+        let values = value.as_array()?;
 
-        let mut bytes = Vec::new();
-
-        for value in values {
-            bytes.extend(self.codec.encode(value));
+        if values.len() != self.size {
+            return Err(Error::InvalidData)
         }
 
-        bytes
+        let mut buff = Vec::new();
+
+        for value in values {
+            buff.extend(self.codec.encode(value)?);
+        }
+
+        Ok(buff)
     }
 }
 
 impl sealed::Decoder for FixedArrayCodec {
-    fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value {
+    fn decode_frame(&self, bytes: &[u8], offset: usize) -> Result<Value, Error> {
         let frame = &bytes[offset..];
-        let values: Vec<Value> = (0..self.size).map(|index| {
-            self.codec.decode_frame(&frame, 32 * index)
-        }).collect();
-        Value::Array(values)
+
+        let mut values = Vec::with_capacity(self.size);
+        for index in 0..self.size {
+            let value = self.codec.decode_frame(&frame, 32 * index)?;
+            values.push(value);
+        }
+
+        Ok(Value::Array(values))
     }
 }
 
 
 pub struct DynamicArrayCodec {
+    name: String,
     codec: Box<dyn Codec>,
 }
 
 impl DynamicArrayCodec {
     pub fn new(codec: Box<dyn Codec>) -> Self {
-        Self { codec }
+        let name = format!("{}[]", codec.name());
+        Self { name, codec }
     }
 }
 
 impl sealed::AbiType for DynamicArrayCodec {
+    fn name(&self) -> &str { &self.name }
     fn is_dynamic(&self) -> bool { true }
 }
 
 impl sealed::Encoder for DynamicArrayCodec {
-    fn encode_frame(&self, value: &Value) -> Vec<u8> {
-        let values = value.as_array().expect("Expected array");
+    fn encode_frame(&self, value: &Value) -> Result<Vec<u8>, Error> {
+        let values = value.as_array()?;
 
         let mut bytes = Vec::new();
 
         let length = Value::UInt(values.len().into());
-        bytes.extend(UIntCodec::new(256).encode(&length));
+        bytes.extend(UIntCodec::new(256).encode(&length)?);
 
         for value in values {
-            bytes.extend(self.codec.encode(value));
+            bytes.extend(self.codec.encode(value)?);
         }
 
-        bytes
+        Ok(bytes)
     }
 }
 
 
 impl sealed::Decoder for DynamicArrayCodec {
-    fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value {
+    fn decode_frame(&self, bytes: &[u8], offset: usize) -> Result<Value, Error> {
         let frame = &bytes[offset..];
-        let head = UIntCodec::new(256).decode_frame(frame, 0);
-        let head = head.as_uint().expect("head is uint");
+        let head = UIntCodec::new(256).decode_frame(frame, 0)?;
+        let head = head.as_uint()?;
         let length = head.to_usize().unwrap();
 
         let frame = &frame[32..];
+        let mut values = Vec::with_capacity(length);
 
-        let values: Vec<Value> = (0..length).map(|index| {
-            self.codec.decode_frame(&frame, 32 * index)
-        }).collect();
-        Value::Array(values)
+        for index in 0..length {
+            let offset = 32 * index;
+            let value = self.codec.decode_frame(&frame, offset)?;
+            values.push(value);
+        }
+        Ok(Value::Array(values))
     }
 }
 
@@ -110,15 +126,15 @@ mod tests {
         )).unwrap();
 
         let inner = UIntCodec::new(8);
-        let codec = DynamicArrayCodec {
-            codec: Box::new(inner),
-        };
-        assert_eq!(codec.decode(&bytes), Value::Array(vec![
-            Value::UInt(1_u8.into()),
-            Value::UInt(2_u8.into()),
-            Value::UInt(3_u8.into()),
-            Value::UInt(4_u8.into()),
-        ]));
+        let codec = DynamicArrayCodec::new(Box::new(inner));
+        assert_eq!(
+            Value::Array(vec![
+                Value::UInt(1_u8.into()),
+                Value::UInt(2_u8.into()),
+                Value::UInt(3_u8.into()),
+                Value::UInt(4_u8.into()),
+            ]),
+            codec.decode(&bytes).unwrap());
     }
 
     #[test]
@@ -133,7 +149,7 @@ mod tests {
             Value::UInt(2_u8.into()),
         ]);
 
-        let bytes = codec.encode(&value);
+        let bytes = codec.encode(&value).unwrap();
         assert_eq!(
             bytes,
             hex::decode(concat!(
@@ -154,7 +170,7 @@ mod tests {
             Value::UInt(2_u8.into()),
         ]);
 
-        let bytes = codec.encode(&value);
+        let bytes = codec.encode(&value).unwrap();
         assert_eq!(
             bytes,
             hex::decode(concat!(
@@ -175,10 +191,13 @@ mod tests {
         let inner = UIntCodec::new(8);
         let codec = FixedArrayCodec::new(2, Box::new(inner));
 
-        assert_eq!(codec.decode(&bytes), Value::Array(vec![
-            Value::UInt(1_u8.into()),
-            Value::UInt(2_u8.into()),
-        ]));
+        assert_eq!(
+            Value::Array(vec![
+                Value::UInt(1_u8.into()),
+                Value::UInt(2_u8.into()),
+            ]),
+            codec.decode(&bytes).unwrap(),
+            );
     }
 
 }

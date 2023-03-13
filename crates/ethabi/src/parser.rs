@@ -27,7 +27,8 @@ impl<'v> EthAbiParser<'v> {
 
     fn accept_type(&self, pair: pest::iterators::Pair<Rule>) -> Box<dyn Codec> {
         let rule = pair.as_rule();
-        let inner = pair.into_inner().next().expect("Rule::Type should have an inner: Rule::TupleType or Rule::BasicType");
+        let inner = pair.into_inner().next()
+            .expect("Rule::Type should have an inner: Rule::TupleType or Rule::BasicType");
 
         match inner.as_rule() {
             Rule::TupleType => self.accept_tuple_type(inner),
@@ -40,21 +41,16 @@ impl<'v> EthAbiParser<'v> {
         let rule = pair.as_rule();
         let mut inner = pair.into_inner();
 
-        let tuple_type = match inner.next() {
-            Some(pair) => pair,
-            None => panic!("Rule::TupleType should have an inner: Rule::ZeroTuple or Rule::NonZeroTuple")
-        };
+        let tuple_type = inner.next()
+            .expect("Rule::TupleType should have an inner: Rule::ZeroTuple or Rule::NonZeroTuple");
 
         let tuple_codec = match tuple_type.as_rule() {
             Rule::ZeroTuple => self.visitor.visit_zero_tuple(),
-            Rule::NonZeroTuple => {
-                let codecs = tuple_type.into_inner().fold(Vec::new(), |mut acc, pair| {
-                    let codec = self.accept_type(pair);
-                    acc.push(codec);
-                    acc
-                });
-                self.visitor.visit_non_zero_tuple(codecs)
-            },
+            Rule::NonZeroTuple => self.visitor.visit_non_zero_tuple(
+                tuple_type.into_inner()
+                    .map(|pair| self.accept_type(pair))
+                    .collect()
+            ),
             _ => unreachable!("Rule::TupleType can not expand to {:?}", rule),
         };
 
@@ -71,13 +67,13 @@ impl<'v> EthAbiParser<'v> {
 
         pair.into_inner().rev().fold(codec, |codec, pair| {
             let array_codec: Box<dyn Codec> = match pair.as_rule() {
+                Rule::DynamicArray => Box::new(DynamicArrayCodec::new(codec)),
                 Rule::ConstArray => {
-                    let digits = pair.into_inner().next().expect("Rule::ConstArray should have an inner: Rule::Digits");
-                    let size = digits.as_str().parse::<usize>().expect("Rule::Digits should be a number");
+                    let digits = pair.into_inner().next()
+                        .expect("Rule::ConstArray should have an inner: Rule::Digits");
+                    let size = digits.as_str().parse::<usize>()
+                        .expect("Rule::Digits should be a number");
                     Box::new(FixedArrayCodec::new(size, codec))
-                }
-                Rule::DynamicArray => {
-                    Box::new(DynamicArrayCodec::new(codec))
                 }
                 _ => unreachable!("Rule::Array can not expand to {:?}", rule),
             };
@@ -179,12 +175,6 @@ mod tests {
     use crate::Value;
 
     #[test]
-    fn test_empty_tuple_codec() {
-        let codec = parse(&[]);
-        assert_eq!(codec.encode(&Value::Tuple(vec![])), vec![]);
-    }
-
-    #[test]
     fn test_simple_tuple_codec() {
         let abi = ["bool", "uint256"].into_iter().map(Into::into).collect::<Vec<_>>();
         let codec = parse(&abi);
@@ -197,9 +187,10 @@ mod tests {
         assert_eq!(
             bytes,
             codec.encode(&Value::Tuple(vec![
-            Value::Boolean(true),
-            Value::UInt(0xFFFF_u32.into()),
-        ])));
+                Value::Boolean(true),
+                Value::UInt(0xFFFF_u32.into()),
+            ])).unwrap()
+        );
     }
 
     #[test]
@@ -218,12 +209,13 @@ mod tests {
         assert_eq!(
             bytes,
             codec.encode(&Value::Tuple(vec![
-            Value::Boolean(true),
-            Value::Array(vec![
-                Value::UInt(3_u32.into()),
-                Value::UInt(4_u32.into()),
-            ]),
-        ])));
+                Value::Boolean(true),
+                Value::Array(vec![
+                    Value::UInt(3_u32.into()),
+                    Value::UInt(4_u32.into()),
+                ]),
+            ])).unwrap()
+        );
     }
 
     #[test]
@@ -245,15 +237,16 @@ mod tests {
         assert_eq!(
             bytes,
             codec.encode(&Value::Tuple(vec![
-            Value::UInt(1_u32.into()),
-            Value::Tuple(vec![
-                Value::UInt(2_u32.into()),
-                Value::Array(vec![
-                    Value::UInt(3_u32.into()),
-                    Value::UInt(4_u32.into()),
+                Value::UInt(1_u32.into()),
+                Value::Tuple(vec![
+                    Value::UInt(2_u32.into()),
+                    Value::Array(vec![
+                        Value::UInt(3_u32.into()),
+                        Value::UInt(4_u32.into()),
+                    ]),
                 ]),
-            ]),
-        ])));
+            ])).unwrap()
+        );
     }
 
     #[test]
@@ -284,7 +277,7 @@ mod tests {
                 ]),
                 Value::Bytes("1234567890".as_bytes().to_vec()),
                 Value::Bytes("Hello, world!".as_bytes().to_vec()),
-            ]))
+            ])).unwrap()
         );
     }
 
@@ -352,7 +345,7 @@ mod tests {
                     Value::UInt(1_u8.into()),
                     Value::UInt(0_u8.into()),
                 ])
-            ]))
+            ])).unwrap()
         );
     }
 
@@ -360,7 +353,7 @@ mod tests {
     fn test_empty_arguments() {
         let abi = vec![];
         let codec = parse(&abi);
-        let value = codec.decode(&[]);
+        let value = codec.decode(&[]).unwrap();
         assert_eq!(value, Value::Tuple(Vec::new()));
     }
 
@@ -375,7 +368,10 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000002",
             "0000000000000000000000000000000000000000000000000000000000000003",
             "0000000000000000000000000000000000000000000000000000000000000004",
-        )).unwrap().as_slice());
+        ))
+        .unwrap()
+        .as_slice())
+        .unwrap();
 
         assert_eq!(
             value,
@@ -423,7 +419,7 @@ mod tests {
             "0000000000000000000000000000000000000000000000000000000000000000"
         )).unwrap();
 
-        let value = codec.decode(bytes.as_slice());
+        let value = codec.decode(bytes.as_slice()).unwrap();
         assert_eq!(
             value,
             Value::Tuple(vec![

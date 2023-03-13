@@ -1,4 +1,5 @@
 use num_bigint::{BigInt, BigUint};
+use crate::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
@@ -13,59 +14,59 @@ pub enum Value {
 }
 
 impl Value {
-    pub fn as_address(&self) -> Option<&str> {
+    pub fn as_address(&self) -> Result<&str, Error> {
         match self {
-            Value::Address(address) => Some(address),
-            _ => None,
+            Value::Address(address) => Ok(address),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_int(&self) -> Option<&BigInt> {
+    pub fn as_int(&self) -> Result<&BigInt, Error> {
         match self {
-            Value::Int(int) => Some(int),
-            _ => None,
+            Value::Int(int) => Ok(int),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_uint(&self) -> Option<&BigUint> {
+    pub fn as_uint(&self) -> Result<&BigUint, Error> {
         match self {
-            Value::UInt(uint) => Some(uint),
-            _ => None,
+            Value::UInt(uint) => Ok(uint),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_bytes(&self) -> Option<&[u8]> {
+    pub fn as_bytes(&self) -> Result<&[u8], Error> {
         match self {
-            Value::Bytes(bytes) => Some(bytes),
-            _ => None,
+            Value::Bytes(bytes) => Ok(bytes),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_string(&self) -> Option<&str> {
+    pub fn as_string(&self) -> Result<&str, Error> {
         match self {
-            Value::String(string) => Some(string),
-            _ => None,
+            Value::String(string) => Ok(string),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_array(&self) -> Option<&[Value]> {
+    pub fn as_array(&self) -> Result<&[Value], Error> {
         match self {
-            Value::Array(array) => Some(array),
-            _ => None,
+            Value::Array(array) => Ok(array),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_tuple(&self) -> Option<&[Value]> {
+    pub fn as_tuple(&self) -> Result<&[Value], Error> {
         match self {
-            Value::Tuple(tuple) => Some(tuple),
-            _ => None,
+            Value::Tuple(tuple) => Ok(tuple),
+            _ => Err(Error::InvalidData),
         }
     }
 
-    pub fn as_boolean(&self) -> Option<&bool> {
+    pub fn as_boolean(&self) -> Result<&bool, Error> {
         match self {
-            Value::Boolean(boolean) => Some(boolean),
-            _ => None,
+            Value::Boolean(boolean) => Ok(boolean),
+            _ => Err(Error::InvalidData),
         }
     }
 }

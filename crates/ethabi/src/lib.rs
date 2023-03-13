@@ -4,12 +4,17 @@ extern crate num_traits;
 extern crate pest;
 #[macro_use]
 extern crate pest_derive;
+#[macro_use]
+extern crate thiserror;
 
 pub use codec::Codec;
+pub use error::Error;
+// pub use error::{EncodeError, DecodeError};
 pub use value::Value;
 pub use parser::parse;
 
 mod codec;
+mod error;
 mod parser;
 mod grammar;
 mod value;

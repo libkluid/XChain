@@ -1,29 +1,31 @@
-use crate::Value;
+use crate::{Value, Error};
 
 pub(crate) mod sealed {
-    use crate::Value;
+    use super::Value;
+    use super::Error;
 
     pub trait AbiType {
+        fn name(&self) -> &str;
         fn is_dynamic(&self) -> bool;
     }
 
     pub trait Encoder: AbiType {
-        fn encode_frame(&self, value: &Value) -> Vec<u8>;
+        fn encode_frame(&self, value: &Value) -> Result<Vec<u8>, Error>;
     }
 
     pub trait Decoder: AbiType {
-        fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value;
+        fn decode_frame(&self, bytes: &[u8], offset: usize) -> Result<Value, Error>;
     }
 }
 
 pub trait Encoder: sealed::Encoder {
-    fn encode(&self, value: &Value) -> Vec<u8> {
+    fn encode(&self, value: &Value) -> Result<Vec<u8>, Error> {
         self.encode_frame(value)
     }
 }
 
 pub trait Decoder: sealed::Decoder {
-    fn decode(&self, bytes: &[u8]) -> Value {
+    fn decode(&self, bytes: &[u8]) -> Result<Value, Error> {
         self.decode_frame(bytes, 0)
     }
 }
