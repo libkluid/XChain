@@ -5,12 +5,11 @@ extern crate pest;
 #[macro_use]
 extern crate pest_derive;
 
-pub use decode::decoder;
-pub use decoder::Decoder;
+pub use codec::Codec;
 pub use value::Value;
+pub use parser::parse;
 
-mod decode;
-mod decoder;
-mod encoder;
+mod codec;
+mod parser;
 mod grammar;
 mod value;

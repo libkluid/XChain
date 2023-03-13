@@ -1,30 +1,33 @@
+use num_traits::ToPrimitive;
 use crate::Value;
-use crate::encoder::{sealed, Encoder};
-use crate::encoder::UIntEncoder;
+use crate::codec::{sealed, Encoder};
+use super::{UIntCodec, Codec};
 
-pub struct TupleEncoder {
-    encoders: Vec<Box<dyn Encoder>>,
+pub struct TupleCodec {
+    codecs: Vec<Box<dyn Codec>>,
 }
 
-impl TupleEncoder {
-    pub fn new(encoders: Vec<Box<dyn Encoder>>) -> Self {
-        TupleEncoder { encoders }
+impl TupleCodec {
+    pub fn new(codecs: Vec<Box<dyn Codec>>) -> Self {
+        Self { codecs }
     }
 }
 
-impl sealed::Encoder for TupleEncoder {
+impl sealed::AbiType for TupleCodec {
     fn is_dynamic(&self) -> bool {
-        self.encoders.iter().any(|encoder| encoder.is_dynamic())
+        self.codecs.iter().any(|codec| codec.is_dynamic())
     }
+}
 
+impl sealed::Encoder for TupleCodec {
     fn encode_frame(&self, value: &Value) -> Vec<u8> {
         let values = value.as_tuple().expect("Expected tuple");
-        assert!(values.len() == self.encoders.len());
+        assert!(values.len() == self.codecs.len());
 
         let mut head_chunks: Vec<Option<Vec<u8>>> = Vec::new();
         let mut tail_chunks = Vec::new();
 
-        for (encoder, value) in self.encoders.iter().zip(values) {
+        for (encoder, value) in self.codecs.iter().zip(values) {
             if encoder.is_dynamic() {
                 head_chunks.push(None);
                 tail_chunks.push(encoder.encode(value));
@@ -39,7 +42,7 @@ impl sealed::Encoder for TupleEncoder {
             Some(*offset)
         }));
 
-        let uint_encoder = UIntEncoder::new(256);
+        let uint_encoder = UIntCodec::new(256);
 
         let head: Vec<u8> = head_chunks.into_iter().map(|item| {
             item.unwrap_or_else(|| {
@@ -55,29 +58,49 @@ impl sealed::Encoder for TupleEncoder {
     }
 }
 
+impl sealed::Decoder for TupleCodec {
+
+    fn decode_frame(&self, bytes: &[u8], offset: usize) -> Value {
+        let frame = &bytes[offset..];
+        let values: Vec<Value> = self.codecs.iter().enumerate().map(|(index, codec)| {
+            if codec.is_dynamic() {
+                let head = UIntCodec::new(256).decode_frame(frame, 32 * index);
+                let head = head.as_uint().expect("head is uint");
+                let frame_base = head.to_usize().unwrap();
+                codec.decode_frame(frame, frame_base)
+            } else {
+                codec.decode_frame(frame, 32 * index)
+            }
+        }).collect();
+        Value::Tuple(values)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::encoder::AddressEncoder;
-    use crate::encoder::DynamicArrayEncoder;
-    use crate::encoder::Encoder;
-    use crate::encoder::BooleanEncoder;
-    use crate::encoder::UIntEncoder;
-    use crate::encoder::{DynamicBytesEncoder, FixedBytesEncoder};
+    use crate::codec::{Decoder, FixedBytesCodec, DynamicBytesCodec, AddressCodec};
+    use crate::codec::{
+        BooleanCodec,
+        UIntCodec,
+        StringCodec,
+        DynamicArrayCodec,
+    };
 
     #[test]
     fn test_empty_tuple_encoder() {
-        let encoder = TupleEncoder::new(vec![]);
-        assert_eq!(encoder.encode(&Value::Tuple(vec![])), vec![]);
+        let codec = TupleCodec::new(vec![]);
+        assert_eq!(codec.encode(&Value::Tuple(vec![])), vec![]);
     }
 
     #[test]
     fn test_simple_tuple_encoder() {
-        let encoders: Vec<Box<dyn Encoder>> = vec![
-            Box::new(BooleanEncoder),
-            Box::new(UIntEncoder::new(256)),
+        let codecs: Vec<Box<dyn Codec>> = vec![
+            Box::new(BooleanCodec),
+            Box::new(UIntCodec::new(256)),
         ];
-        let encoder = TupleEncoder::new(encoders);
+        let codec = TupleCodec::new(codecs);
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -86,7 +109,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            encoder.encode(&Value::Tuple(vec![
+            codec.encode(&Value::Tuple(vec![
             Value::Boolean(true),
             Value::UInt(0xFFFF_u32.into()),
         ])));
@@ -94,12 +117,12 @@ mod tests {
 
     #[test]
     fn test_array_nesting_tuple_encoder() {
-        let uint_encoder = UIntEncoder::new(256);
-        let encoders: Vec<Box<dyn Encoder>> = vec![
-            Box::new(BooleanEncoder),
-            Box::new(DynamicArrayEncoder::new(Box::new(uint_encoder))),
+        let uint_encoder = UIntCodec::new(256);
+        let codec: Vec<Box<dyn Codec>> = vec![
+            Box::new(BooleanCodec),
+            Box::new(DynamicArrayCodec::new(Box::new(uint_encoder))),
         ];
-        let encoder = TupleEncoder::new(encoders);
+        let codec = TupleCodec::new(codec);
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -111,7 +134,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            encoder.encode(&Value::Tuple(vec![
+            codec.encode(&Value::Tuple(vec![
             Value::Boolean(true),
             Value::Array(vec![
                 Value::UInt(3_u32.into()),
@@ -123,11 +146,11 @@ mod tests {
     #[test]
     fn test_complex_tuple_encoder() {
         // (uint256, (uint256, uint256[])
-        let encoder = TupleEncoder::new(vec![
-            Box::new(UIntEncoder::new(256)),
-            Box::new(TupleEncoder::new(vec![
-                Box::new(UIntEncoder::new(256)),
-                Box::new(DynamicArrayEncoder::new(Box::new(UIntEncoder::new(256)))),
+        let codec = TupleCodec::new(vec![
+            Box::new(UIntCodec::new(256)),
+            Box::new(TupleCodec::new(vec![
+                Box::new(UIntCodec::new(256)),
+                Box::new(DynamicArrayCodec::new(Box::new(UIntCodec::new(256)))),
             ])),
         ]);
 
@@ -143,7 +166,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            encoder.encode(&Value::Tuple(vec![
+            codec.encode(&Value::Tuple(vec![
             Value::UInt(1_u32.into()),
             Value::Tuple(vec![
                 Value::UInt(2_u32.into()),
@@ -158,11 +181,11 @@ mod tests {
     #[test]
     fn test_more_complex_tuple_encoder() {
         // (uint,uint32[],bytes10,bytes)
-        let encoder = TupleEncoder::new(vec![
-            Box::new(UIntEncoder::new(256)),
-            Box::new(DynamicArrayEncoder::new(Box::new(UIntEncoder::new(32)))),
-            Box::new(FixedBytesEncoder::new(10)),
-            Box::new(DynamicBytesEncoder),
+        let codec = TupleCodec::new(vec![
+            Box::new(UIntCodec::new(256)),
+            Box::new(DynamicArrayCodec::new(Box::new(UIntCodec::new(32)))),
+            Box::new(FixedBytesCodec::new(10)),
+            Box::new(DynamicBytesCodec),
         ]);
 
         let bytes = hex::decode(concat!(
@@ -179,7 +202,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            encoder.encode(&Value::Tuple(vec![
+            codec.encode(&Value::Tuple(vec![
                 Value::UInt(0x123_u32.into()),
                 Value::Array(vec![
                     Value::UInt(0x456_u32.into()),
@@ -194,12 +217,12 @@ mod tests {
     #[test]
     fn test_issue289() {
         // (uint,uint32[],bytes10,bytes)
-        let encoder = TupleEncoder::new(vec![
-            Box::new(DynamicArrayEncoder::new(Box::new(AddressEncoder))),
-            Box::new(DynamicArrayEncoder::new(Box::new(UIntEncoder::new(256)))),
-            Box::new(DynamicArrayEncoder::new(Box::new(AddressEncoder))),
-            Box::new(DynamicArrayEncoder::new(Box::new(UIntEncoder::new(256)))),
-            Box::new(DynamicArrayEncoder::new(Box::new(UIntEncoder::new(256)))),
+        let codec = TupleCodec::new(vec![
+            Box::new(DynamicArrayCodec::new(Box::new(AddressCodec))),
+            Box::new(DynamicArrayCodec::new(Box::new(UIntCodec::new(256)))),
+            Box::new(DynamicArrayCodec::new(Box::new(AddressCodec))),
+            Box::new(DynamicArrayCodec::new(Box::new(UIntCodec::new(256)))),
+            Box::new(DynamicArrayCodec::new(Box::new(UIntCodec::new(256)))),
         ]);
 
         let bytes = hex::decode(concat!(
@@ -233,7 +256,7 @@ mod tests {
 
         assert_eq!(
             bytes,
-            encoder.encode(&Value::Tuple(vec![
+            codec.encode(&Value::Tuple(vec![
                 Value::Array(vec![
                     Value::Address("1111111111111111111111111111111111111111".into()),
                     Value::Address("2222222222222222222222222222222222222222".into()),
@@ -261,6 +284,63 @@ mod tests {
                     Value::UInt(0_u8.into()),
                 ])
             ]))
+        );
+    }
+
+    #[test]
+    fn test_static_tuple_decoder() {
+        let bytes = hex::decode(concat!(
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "0000000000000000000000000000000000000000000000000000000000000040",
+            "0000000000000000000000000000000000000000000000000000000000000003",
+            "6162630000000000000000000000000000000000000000000000000000000000",
+        )).unwrap();
+
+        let uintdecoder = UIntCodec::new(256);
+        let stringdecoder = StringCodec;
+        let codec = TupleCodec::new(vec![Box::new(uintdecoder), Box::new(stringdecoder)]);
+        
+        assert_eq!(
+            codec.decode(&bytes),
+            Value::Tuple(vec![
+                Value::UInt(1_u8.into()),
+                Value::String("abc".to_string())
+            ])
+        );
+    }
+
+    #[test]
+    fn test_dynamic_tuple_decoder() {
+        // (uint, (uint, uint[]))
+        let bytes = hex::decode(concat!(
+            "0000000000000000000000000000000000000000000000000000000000000001",
+            "0000000000000000000000000000000000000000000000000000000000000040",
+            "0000000000000000000000000000000000000000000000000000000000000002",
+            "0000000000000000000000000000000000000000000000000000000000000040",
+            "0000000000000000000000000000000000000000000000000000000000000003",
+            "0000000000000000000000000000000000000000000000000000000000000004",
+            "0000000000000000000000000000000000000000000000000000000000000005",
+            "0000000000000000000000000000000000000000000000000000000000000006",
+        )).unwrap();
+
+        let uint_decoder = UIntCodec::new(256);
+        let array_decoder = DynamicArrayCodec::new(Box::new(uint_decoder));
+        let tuple_decoder = TupleCodec::new(vec![Box::new(uint_decoder), Box::new(array_decoder)]);
+        let tuple_decoder = TupleCodec::new(vec![Box::new(uint_decoder), Box::new(tuple_decoder)]);
+
+        assert_eq!(
+            tuple_decoder.decode(&bytes),
+            Value::Tuple(vec![
+                Value::UInt(1_u8.into()),
+                Value::Tuple(vec![
+                    Value::UInt(2_u8.into()),
+                    Value::Array(vec![
+                        Value::UInt(4_u8.into()),
+                        Value::UInt(5_u8.into()),
+                        Value::UInt(6_u8.into()),
+                    ])
+                ])
+            ])
         );
     }
 }
