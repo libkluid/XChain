@@ -1,4 +1,5 @@
 use std::cell::Cell;
+use std::rc::Rc;
 use num_bigint::BigInt;
 use num_traits::Num;
 use crate::Error;
@@ -8,18 +9,18 @@ use crate::network::NetworkOptions;
 
 pub struct EthereumNetwork {
     sequence: Cell<u64>,
-    channel: Box<dyn channel::Channel>,
+    channel: Rc<dyn channel::Channel>,
     options: NetworkOptions,
 }
 
 impl EthereumNetwork {
-    pub fn new<C>(channel: C, options: NetworkOptions) -> Self
+    pub fn new<C>(channel: Rc<C>, options: NetworkOptions) -> Self
     where
         C: channel::Channel + 'static
     {
         Self {
             sequence: Cell::new(0),
-            channel: Box::new(channel),
+            channel: channel,
             options,
         }
     }
@@ -115,9 +116,9 @@ mod tests {
     use crate::channel::HttpChannel;
 
     fn setup_ethereum_network() -> EthereumNetwork {
-        let blockpi_channel = HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public");
+        let blockpi_channel = Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public"));
         let options = NetworkOptions::default();
-        let network = EthereumNetwork::new(blockpi_channel, options);
+        let network = EthereumNetwork::new(Rc::clone(&blockpi_channel), options);
         network
     }
 
