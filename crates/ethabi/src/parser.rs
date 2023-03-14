@@ -13,6 +13,7 @@ use crate::codec::{
 };
 use crate::grammar::{EthAbi, Rule};
 use crate::Codec;
+use crate::Error;
 
 struct EthAbiParser<'v> {
     visitor: &'v mut Visitor,
@@ -25,7 +26,7 @@ impl<'v> EthAbiParser<'v> {
         }
     }
 
-    fn accept_type(&self, pair: pest::iterators::Pair<Rule>) -> Box<dyn Codec> {
+    fn accept_type(&self, pair: pest::iterators::Pair<Rule>) -> Result<Box<dyn Codec>, Error> {
         let rule = pair.as_rule();
         let inner = pair.into_inner().next()
             .expect("Rule::Type should have an inner: Rule::TupleType or Rule::BasicType");
@@ -37,7 +38,7 @@ impl<'v> EthAbiParser<'v> {
         }
     }
 
-    fn accept_tuple_type(&self, pair: pest::iterators::Pair<Rule>) -> Box<dyn Codec> {
+    fn accept_tuple_type(&self, pair: pest::iterators::Pair<Rule>) -> Result<Box<dyn Codec>, Error> {
         let rule = pair.as_rule();
         let mut inner = pair.into_inner();
 
@@ -46,26 +47,26 @@ impl<'v> EthAbiParser<'v> {
 
         let tuple_codec = match tuple_type.as_rule() {
             Rule::ZeroTuple => self.visitor.visit_zero_tuple(),
-            Rule::NonZeroTuple => self.visitor.visit_non_zero_tuple(
-                tuple_type.into_inner()
+            Rule::NonZeroTuple => {
+                let codecs = tuple_type.into_inner()
                     .map(|pair| self.accept_type(pair))
-                    .collect()
-            ),
+                    .collect::<Result<Vec<_>, Error>>()?;
+                self.visitor.visit_non_zero_tuple(codecs)
+            }
             _ => unreachable!("Rule::TupleType can not expand to {:?}", rule),
         };
 
         match inner.next() {
-            None => tuple_codec,
-            Some(array) => {
-                self.accept_array(array, tuple_codec)
-            }
+            None => Ok(tuple_codec),
+            Some(array) => self.accept_array(array, tuple_codec),
         }
     }
 
-    fn accept_array(&self, pair: pest::iterators::Pair<Rule>, codec: Box<dyn Codec>) -> Box<dyn Codec> {
+    fn accept_array(&self, pair: pest::iterators::Pair<Rule>, codec: Box<dyn Codec>) -> Result<Box<dyn Codec>, Error> {
         let rule = pair.as_rule();
 
-        pair.into_inner().rev().fold(codec, |codec, pair| {
+        let mut codec = codec;
+        for pair in pair.into_inner().rev() {
             let array_codec: Box<dyn Codec> = match pair.as_rule() {
                 Rule::DynamicArray => Box::new(DynamicArrayCodec::new(codec)),
                 Rule::ConstArray => {
@@ -73,16 +74,18 @@ impl<'v> EthAbiParser<'v> {
                         .expect("Rule::ConstArray should have an inner: Rule::Digits");
                     let size = digits.as_str().parse::<usize>()
                         .expect("Rule::Digits should be a number");
+                    
                     Box::new(FixedArrayCodec::new(size, codec))
                 }
                 _ => unreachable!("Rule::Array can not expand to {:?}", rule),
             };
 
-            array_codec
-        })
+            codec = array_codec;
+        }
+        Ok(codec)
     }
 
-    fn accept_basic_type(&self, pair: pest::iterators::Pair<Rule>) -> Box<dyn Codec> {
+    fn accept_basic_type(&self, pair: pest::iterators::Pair<Rule>) -> Result<Box<dyn Codec>, Error> {
         let mut inner = pair.into_inner();
 
         let base = inner.next().expect("Rule::BasicType should have an inner: Rule::BaseType");
@@ -97,8 +100,8 @@ impl<'v> EthAbiParser<'v> {
             (None, None)
         };
 
-        let base_name = base.as_str();
-        let base_codec: Box<dyn Codec> = match base_name {
+        let base_name = base.as_str().to_lowercase();
+        let base_codec: Box<dyn Codec> = match base_name.as_str() {
             "address" => Box::new(AddressCodec),
             "bool" => Box::new(BooleanCodec),
             "bytes" => {
@@ -111,14 +114,14 @@ impl<'v> EthAbiParser<'v> {
             "int" => {
                 let size = sub.map(|digits| digits.as_str().parse::<usize>().expect("Rule::Digits should be a number")).unwrap_or(256);
                 if size > 256 || size % 8 != 0 {
-                    panic!("int size should be 8, 16, 24, ..., 256");
+                    Err(Error::UnknownType(format!("int{}", size)))?
                 }
                 Box::new(IntCodec::new(size))
             }
             "uint" => {
                 let size = sub.map(|digits| digits.as_str().parse::<usize>().expect("Rule::Digits should be a number")).unwrap_or(256);
                 if size > 256 || size % 8 != 0 {
-                    panic!("int size should be 8, 16, 24, ..., 256");
+                    Err(Error::UnknownType(format!("uint{}", size)))?
                 }
                 Box::new(UIntCodec::new(size))
             }
@@ -128,18 +131,16 @@ impl<'v> EthAbiParser<'v> {
             "fixed" => unimplemented!("fixed type is not supported yet"),
             "ufixed" => unimplemented!("ufixed type is not supported yet"),
             "function" => unimplemented!("function type is not supported yet"),
-            _ => unreachable!("Unknown type {:?}", base_name),
+            _ => Err(Error::UnknownType(base_name.to_string()))?,
         };
 
         match array {
-            None => base_codec,
-            Some(array) => {
-                self.accept_array(array, base_codec)
-            }
+            None => Ok(base_codec),
+            Some(array) => self.accept_array(array, base_codec)
         }
     }
 
-    fn parse(&self, abi: &str) -> Box<dyn Codec> {
+    fn parse(&self, abi: &str) -> Result<Box<dyn Codec>, Error> {
         let mut pairs = EthAbi::parse(Rule::Type, abi).unwrap();
         let pair = pairs.next().expect("should have a pair");
         self.accept_type(pair)
@@ -160,13 +161,13 @@ impl Visitor {
     }
 }
 
-pub fn parse(types: &[String]) -> Box<dyn Codec> {
+pub fn parse(types: &[String]) -> Result<Box<dyn Codec>, Error> {
     let mut visitor = Visitor;
     let context = EthAbiParser::new(&mut visitor);
 
-    let codecs = types.iter().map(|t| context.parse(t)).collect::<Vec<_>>();
+    let codecs = types.iter().map(|t| context.parse(t)).collect::<Result<Vec<_>, Error>>()?;
     let codec = TupleCodec::new(codecs);
-    Box::new(codec)
+    Ok(Box::new(codec))
 }
 
 #[cfg(test)]
@@ -175,9 +176,16 @@ mod tests {
     use crate::Value;
 
     #[test]
+    fn test_unknown_type() {
+        let abi = "qbit";
+        let codec = parse(&[abi.into()]);
+        assert_eq!(codec.err(), Some(Error::UnknownType(abi.to_string())));
+    }
+
+    #[test]
     fn test_simple_tuple_codec() {
         let abi = ["bool", "uint256"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -196,7 +204,7 @@ mod tests {
     #[test]
     fn test_array_nesting_tuple_codec() {
         let abi = ["bool", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -222,7 +230,7 @@ mod tests {
     fn test_complex_tuple_codec() {
         // (uint256, (uint256, uint256[])
         let abi = ["uint256", "(uint256, uint256[])"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -253,7 +261,7 @@ mod tests {
     fn test_more_complex_tuple_codec() {
         // (uint,uint32[],bytes10,bytes)
         let abi = ["uint", "uint32[]", "bytes10", "bytes"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000123",
@@ -285,7 +293,7 @@ mod tests {
     fn test_issue289_encode() {
         // (uint,uint32[],bytes10,bytes)
         let abi = ["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "00000000000000000000000000000000000000000000000000000000000000a0",
@@ -352,7 +360,7 @@ mod tests {
     #[test]
     fn test_empty_arguments() {
         let abi = vec![];
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
         let value = codec.decode(&[]).unwrap();
         assert_eq!(value, Value::Tuple(Vec::new()));
     }
@@ -360,7 +368,7 @@ mod tests {
     #[test]
     fn test_abi_parser() {
         let abi = ["uint256", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
         
         let value = codec.decode(hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -389,7 +397,7 @@ mod tests {
     fn test_issue289_decode() {
         // github issue: https://github.com/rust-ethereum/ethabi/issues/289
         let abi = ["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi);
+        let codec = parse(&abi).unwrap();
         let bytes = hex::decode(concat!(
             "00000000000000000000000000000000000000000000000000000000000000a0",
             "0000000000000000000000000000000000000000000000000000000000000160",
