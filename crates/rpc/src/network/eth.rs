@@ -40,6 +40,15 @@ impl EthereumNetwork {
         expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
     }
 
+    pub async fn block_by_number<D>(&self, number: u64) -> Result<D, Error>
+    where
+        for <'de> D: serde::Deserialize<'de>
+    {
+        let params = json!([format!("{:#x}", number), false]);
+        let jsonrpc = JsonRpc::format(self.advance(), "eth_getBlockByNumber", params);
+        expect_json_response::<D>(jsonrpc, self.channel.as_ref()).await
+    }
+
     pub async fn gas_price(&self) -> Result<BigInt, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_gasPrice", json!(null));
         expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
@@ -61,6 +70,15 @@ impl EthereumNetwork {
         let params = json!([address,  "latest"]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionCount", params);
         expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+    }
+
+    pub async fn transaction_receipt<D>(&self, hash: &str) -> Result<D, Error>
+    where
+        for <'de> D: serde::Deserialize<'de>
+    {
+        let params = json!([hash]);
+        let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionReceipt", params);
+        expect_json_response::<D>(jsonrpc, self.channel.as_ref()).await
     }
 
     pub async fn call(&self, to: &str, data: &str) -> Result<Vec<u8>, Error> {
@@ -86,6 +104,14 @@ async fn expect_bytes_response(jsonrpc: JsonRpc, channel: &dyn channel::Channel)
     let response = channel.send(&jsonrpc).await?;
     let result = response.as_result::<String>()?;
     bytes_from_hex(result)
+}
+
+async fn expect_json_response<D>(jsonrpc: JsonRpc, channel: &dyn channel::Channel) -> Result<D, Error>
+where
+    for <'de> D: serde::Deserialize<'de>
+{
+    let response = channel.send(&jsonrpc).await?;
+    response.as_result::<D>()
 }
 
 fn strip_hex(hex: &str) -> &str {
@@ -134,6 +160,13 @@ mod tests {
         let network = setup_ethereum_network();
         let block_number = network.block_number().await.unwrap();
         assert!(dbg!(block_number) > BigInt::zero());
+    }
+
+    #[tokio::test]
+    async fn requests_ethereum_block_by_number() {
+        let network = setup_ethereum_network();
+        let block = network.block_by_number::<serde_json::Value>(1).await.unwrap();
+        assert!(dbg!(block).is_object());
     }
 
     #[tokio::test]
