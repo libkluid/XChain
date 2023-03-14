@@ -7,6 +7,9 @@ extern crate pest_derive;
 #[macro_use]
 extern crate thiserror;
 
+pub use num_traits::ToPrimitive;
+pub use num_bigint::{BigInt, BigUint};
+
 pub use codec::Codec;
 pub use error::Error;
 pub use value::Value;
