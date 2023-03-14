@@ -9,7 +9,6 @@ extern crate thiserror;
 
 pub use codec::Codec;
 pub use error::Error;
-// pub use error::{EncodeError, DecodeError};
 pub use value::Value;
 pub use parser::parse;
 
