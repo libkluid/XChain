@@ -161,7 +161,7 @@ impl Visitor {
     }
 }
 
-pub fn parse(types: &[String]) -> Result<Box<dyn Codec>, Error> {
+pub fn parse(types: &[&str]) -> Result<Box<dyn Codec>, Error> {
     let mut visitor = Visitor;
     let context = EthAbiParser::new(&mut visitor);
 
@@ -178,14 +178,14 @@ mod tests {
     #[test]
     fn test_unknown_type() {
         let abi = "qbit";
-        let codec = parse(&[abi.into()]);
+        let codec = parse(&[abi]);
         assert_eq!(codec.err(), Some(Error::UnknownType(abi.to_string())));
     }
 
     #[test]
     fn test_simple_tuple_codec() {
-        let abi = ["bool", "uint256"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["bool", "uint256"];
+        let codec = parse(abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -203,8 +203,8 @@ mod tests {
 
     #[test]
     fn test_array_nesting_tuple_codec() {
-        let abi = ["bool", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["bool", "uint256[]"];
+        let codec = parse(abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -229,8 +229,8 @@ mod tests {
     #[test]
     fn test_complex_tuple_codec() {
         // (uint256, (uint256, uint256[])
-        let abi = ["uint256", "(uint256, uint256[])"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["uint256", "(uint256, uint256[])"];
+        let codec = parse(abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -260,8 +260,8 @@ mod tests {
     #[test]
     fn test_more_complex_tuple_codec() {
         // (uint,uint32[],bytes10,bytes)
-        let abi = ["uint", "uint32[]", "bytes10", "bytes"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["uint", "uint32[]", "bytes10", "bytes"];
+        let codec = parse(abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000123",
@@ -292,8 +292,8 @@ mod tests {
     #[test]
     fn test_issue289_encode() {
         // (uint,uint32[],bytes10,bytes)
-        let abi = ["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"];
+        let codec = parse(abi).unwrap();
 
         let bytes = hex::decode(concat!(
             "00000000000000000000000000000000000000000000000000000000000000a0",
@@ -359,16 +359,15 @@ mod tests {
 
     #[test]
     fn test_empty_arguments() {
-        let abi = vec![];
-        let codec = parse(&abi).unwrap();
+        let codec = parse(&[]).unwrap();
         let value = codec.decode(&[]).unwrap();
         assert_eq!(value, Value::Tuple(Vec::new()));
     }
 
     #[test]
     fn test_abi_parser() {
-        let abi = ["uint256", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["uint256", "uint256[]"];
+        let codec = parse(abi).unwrap();
         
         let value = codec.decode(hex::decode(concat!(
             "0000000000000000000000000000000000000000000000000000000000000001",
@@ -396,8 +395,8 @@ mod tests {
     #[test]
     fn test_issue289_decode() {
         // github issue: https://github.com/rust-ethereum/ethabi/issues/289
-        let abi = ["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"].into_iter().map(Into::into).collect::<Vec<_>>();
-        let codec = parse(&abi).unwrap();
+        let abi = &["address[]", "uint256[]", "address[]", "uint256[]", "uint256[]"];
+        let codec = parse(abi).unwrap();
         let bytes = hex::decode(concat!(
             "00000000000000000000000000000000000000000000000000000000000000a0",
             "0000000000000000000000000000000000000000000000000000000000000160",

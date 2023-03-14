@@ -62,10 +62,9 @@ impl EthereumNetwork {
         expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
     }
 
-    pub async fn call(&self, from: &str, to: &str, data: &str) -> Result<Vec<u8>, Error> {
+    pub async fn call(&self, to: &str, data: &str) -> Result<Vec<u8>, Error> {
         let params = json!([
             {
-                "from": from,
                 "to": to,
                 "data": data,
             },
@@ -172,7 +171,6 @@ mod tests {
         const WETH: &'static str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
         let network = setup_ethereum_network();
         let response = network.call(
-            "0x0000000000000000000000000000000000000000",
             WETH,
             "0x95d89b41"
         ).await.unwrap();
