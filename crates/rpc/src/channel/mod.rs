@@ -1,4 +1,5 @@
 pub use oneshot::OneshotChannel;
+pub use subscription::{SubscriptionChannel, Subscriber};
 pub use http::HttpChannel;
 pub use ws::WebsocketChannel;
 

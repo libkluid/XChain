@@ -5,6 +5,8 @@ extern crate hex;
 extern crate log;
 extern crate num_bigint;
 extern crate num_traits;
+#[macro_use]
+extern crate pin_project;
 extern crate reqwest;
 extern crate serde;
 #[macro_use]

@@ -1,13 +1,13 @@
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use crate::jsonrpc::Id;
 
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JsonRpc {
-    pub jsonrpc: &'static str,
-    pub method: &'static str,
+    pub jsonrpc: String,
+    pub method: String,
     pub params: Value,
-    pub id: Id,
+    pub id: Option<Id>,
 }
 
 impl JsonRpc {
@@ -17,10 +17,10 @@ impl JsonRpc {
         P: Into<Value>,
     {
         Self {
-            jsonrpc: "2.0",
-            method,
+            jsonrpc: "2.0".into(),
+            method: method.into(),
             params: params.into(),
-            id: id.into(),
+            id: Some(id.into()),
         }
     }
 }

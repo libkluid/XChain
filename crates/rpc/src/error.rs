@@ -19,6 +19,12 @@ pub enum Error {
 
     #[error("Connection error: {0}")]
     ConnectionError(String),
+
+    #[error("Subscription error")]
+    ResponseDroppedError,
+
+    #[error("Subscription channel not provided")]
+    SubscriptionChannelNotProvidedError,
 }
 
 impl From<reqwest::Error> for Error {

@@ -4,23 +4,23 @@ use num_bigint::BigInt;
 use num_traits::Num;
 use crate::Error;
 use crate::channel;
+use crate::channel::Subscriber;
 use crate::jsonrpc::{self, JsonRpc};
 use crate::network::NetworkOptions;
 
 pub struct EthereumNetwork {
     sequence: Cell<u64>,
     oneshot: Rc<dyn channel::OneshotChannel<Output=jsonrpc::Response>>,
+    subscription: Option<Rc<dyn channel::SubscriptionChannel<Item=jsonrpc::JsonRpc>>>,
     options: NetworkOptions,
 }
 
 impl EthereumNetwork {
-    pub fn new<C>(oneshot: Rc<C>, options: NetworkOptions) -> Self
-    where
-        C: channel::OneshotChannel<Output=jsonrpc::Response> + 'static
-    {
+    pub fn new(options: NetworkOptions) -> Self {
         Self {
             sequence: Cell::new(0),
-            oneshot: oneshot,
+            oneshot: options.oneshot.clone(),
+            subscription: options.subscription.clone(),
             options,
         }
     }
@@ -92,6 +92,14 @@ impl EthereumNetwork {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_call", params);
         expect_bytes_response(jsonrpc, self.oneshot.as_ref()).await
     }
+
+    pub async fn subscribe(&self, topic: &str) -> Result<Subscriber<JsonRpc>, Error> {
+        let subscribe_chanel = self.subscription.as_ref().ok_or(Error::SubscriptionChannelNotProvidedError)?;
+        let params = json!([topic]);
+        let jsonrpc = JsonRpc::format(self.advance(), "eth_subscribe", params);
+        let subscriber = subscribe_chanel.subscribe(&jsonrpc).await.unwrap();
+        Ok(subscriber)
+    }
 }
 
 async fn expect_bigint_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>, radix: u32) -> Result<BigInt, Error> {
@@ -139,12 +147,15 @@ fn bytes_from_hex(hex: String) -> Result<Vec<u8>, Error> {
 mod tests {
     use super::*;
     use num_traits::Zero;
-    use crate::channel::HttpChannel;
+    use crate::channel::{HttpChannel, WebsocketChannel};
 
     fn setup_ethereum_network() -> EthereumNetwork {
-        let blockpi_channel = Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public"));
-        let options = NetworkOptions::default();
-        let network = EthereumNetwork::new(Rc::clone(&blockpi_channel), options);
+        let options = NetworkOptions {
+            radix: 16,
+            oneshot: Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public")),
+            subscription: Some(Rc::new(WebsocketChannel::subscription("wss://mainnet.infura.io/ws/v3/8373ce611754454884132be22b562e45"))),
+        };
+        let network = EthereumNetwork::new(options);
         network
     }
 
@@ -190,6 +201,20 @@ mod tests {
         let network = setup_ethereum_network();
         let balance = network.balance(WETH).await.unwrap();
         assert!(dbg!(balance) > BigInt::zero());
+    }
+
+    #[tokio::test]
+    async fn requests_ethereum_subscribe() {
+        use futures::StreamExt;
+        let network = setup_ethereum_network();
+        let mut subscriber = network.subscribe("newHeads").await.unwrap();
+
+        let item = subscriber.next().await;
+        assert_eq!(item.is_some(), true);
+        let result = item.unwrap();
+        assert_eq!(result.is_ok(), true);
+        let response = result.unwrap();
+        assert_eq!(response.method, "eth_subscription");
     }
 
     #[tokio::test]
