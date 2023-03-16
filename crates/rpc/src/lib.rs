@@ -2,6 +2,7 @@
 extern crate async_trait;
 extern crate futures;
 extern crate hex;
+extern crate log;
 extern crate num_bigint;
 extern crate num_traits;
 extern crate reqwest;

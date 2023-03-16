@@ -27,6 +27,7 @@ impl WebsocketChannel {
     }
 
     async fn connection(&self) -> Result<Session, Error> {
+        log::info!("Connecting to {}", self.endpoint.as_str());
         let (stream, _) = tokio_tungstenite::connect_async(self.endpoint.clone()).await?;
         Ok(stream)
     }
