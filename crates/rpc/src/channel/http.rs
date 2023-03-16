@@ -1,4 +1,4 @@
-use crate::channel::Channel;
+use crate::channel::OneshotChannel;
 use crate::jsonrpc::{JsonRpc, Response};
 use crate::Error;
 
@@ -20,8 +20,9 @@ impl HttpChannel {
 }
 
 #[async_trait]
-impl Channel for HttpChannel {
-    async fn send(&self, json: &JsonRpc) -> Result<Response, Error> {
+impl OneshotChannel for HttpChannel {
+    type Output = Response;
+    async fn fire(&self, json: &JsonRpc) -> Result<Self::Output, Error> {
         let response: Response = self.http.post(&self.endpoint)
             .json(json).send().await?
             .json().await?;
@@ -46,7 +47,7 @@ mod tests {
             json!(null),
         );
 
-        let result = http.send(&jsonrpc)
+        let result = http.fire(&jsonrpc)
             .await.expect("Failed to send request");
         assert_eq!(result.id, Id::Num(1));
 

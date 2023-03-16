@@ -4,23 +4,23 @@ use num_bigint::BigInt;
 use num_traits::Num;
 use crate::Error;
 use crate::channel;
-use crate::jsonrpc::JsonRpc;
+use crate::jsonrpc::{self, JsonRpc};
 use crate::network::NetworkOptions;
 
 pub struct EthereumNetwork {
     sequence: Cell<u64>,
-    channel: Rc<dyn channel::Channel>,
+    oneshot: Rc<dyn channel::OneshotChannel<Output=jsonrpc::Response>>,
     options: NetworkOptions,
 }
 
 impl EthereumNetwork {
-    pub fn new<C>(channel: Rc<C>, options: NetworkOptions) -> Self
+    pub fn new<C>(oneshot: Rc<C>, options: NetworkOptions) -> Self
     where
-        C: channel::Channel + 'static
+        C: channel::OneshotChannel<Output=jsonrpc::Response> + 'static
     {
         Self {
             sequence: Cell::new(0),
-            channel: channel,
+            oneshot: oneshot,
             options,
         }
     }
@@ -32,12 +32,12 @@ impl EthereumNetwork {
 
     pub async fn chain_id(&self) -> Result<BigInt, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_chainId", json!(null));
-        expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+        expect_bigint_response(jsonrpc, self.oneshot.as_ref(), self.options.radix).await
     }
 
     pub async fn block_number(&self) -> Result<BigInt, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_blockNumber", json!(null));
-        expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+        expect_bigint_response(jsonrpc, self.oneshot.as_ref(), self.options.radix).await
     }
 
     pub async fn block_by_number<D>(&self, number: u64) -> Result<D, Error>
@@ -46,30 +46,30 @@ impl EthereumNetwork {
     {
         let params = json!([format!("{:#x}", number), false]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getBlockByNumber", params);
-        expect_json_response::<D>(jsonrpc, self.channel.as_ref()).await
+        expect_json_response::<D>(jsonrpc, self.oneshot.as_ref()).await
     }
 
     pub async fn gas_price(&self) -> Result<BigInt, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_gasPrice", json!(null));
-        expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+        expect_bigint_response(jsonrpc, self.oneshot.as_ref(), self.options.radix).await
     }
 
     pub async fn code(&self, address: &str) -> Result<Vec<u8>, Error> {
         let params = json!([address,  "latest"]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getCode", params);
-        expect_bytes_response(jsonrpc, self.channel.as_ref()).await
+        expect_bytes_response(jsonrpc, self.oneshot.as_ref()).await
     }
 
     pub async fn balance(&self, address: &str) -> Result<BigInt, Error> {
         let params = json!([address,  "latest"]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getBalance", params);
-        expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+        expect_bigint_response(jsonrpc, self.oneshot.as_ref(), self.options.radix).await
     }
 
     pub async fn transaction_count(&self, address: &str) -> Result<BigInt, Error> {
         let params = json!([address,  "latest"]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionCount", params);
-        expect_bigint_response(jsonrpc, self.channel.as_ref(), self.options.radix).await
+        expect_bigint_response(jsonrpc, self.oneshot.as_ref(), self.options.radix).await
     }
 
     pub async fn transaction_receipt<D>(&self, hash: &str) -> Result<D, Error>
@@ -78,7 +78,7 @@ impl EthereumNetwork {
     {
         let params = json!([hash]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionReceipt", params);
-        expect_json_response::<D>(jsonrpc, self.channel.as_ref()).await
+        expect_json_response::<D>(jsonrpc, self.oneshot.as_ref()).await
     }
 
     pub async fn call(&self, to: &str, data: &str) -> Result<Vec<u8>, Error> {
@@ -90,27 +90,27 @@ impl EthereumNetwork {
             "latest",
         ]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_call", params);
-        expect_bytes_response(jsonrpc, self.channel.as_ref()).await
+        expect_bytes_response(jsonrpc, self.oneshot.as_ref()).await
     }
 }
 
-async fn expect_bigint_response(jsonrpc: JsonRpc, channel: &dyn channel::Channel, radix: u32) -> Result<BigInt, Error> {
-    let response = channel.send(&jsonrpc).await?;
+async fn expect_bigint_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>, radix: u32) -> Result<BigInt, Error> {
+    let response = channel.fire(&jsonrpc).await?;
     let result = response.as_result::<String>()?;
     bigint_from_hex(result, radix)
 }
 
-async fn expect_bytes_response(jsonrpc: JsonRpc, channel: &dyn channel::Channel) -> Result<Vec<u8>, Error> {
-    let response = channel.send(&jsonrpc).await?;
+async fn expect_bytes_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<Vec<u8>, Error> {
+    let response = channel.fire(&jsonrpc).await?;
     let result = response.as_result::<String>()?;
     bytes_from_hex(result)
 }
 
-async fn expect_json_response<D>(jsonrpc: JsonRpc, channel: &dyn channel::Channel) -> Result<D, Error>
+async fn expect_json_response<D>(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<D, Error>
 where
     for <'de> D: serde::Deserialize<'de>
 {
-    let response = channel.send(&jsonrpc).await?;
+    let response = channel.fire(&jsonrpc).await?;
     response.as_result::<D>()
 }
 
