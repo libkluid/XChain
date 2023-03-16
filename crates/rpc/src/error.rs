@@ -1,3 +1,5 @@
+use tokio_tungstenite::tungstenite;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Hex decode error: {0}")]
@@ -8,6 +10,15 @@ pub enum Error {
 
     #[error("Unhandled error: {0}")]
     UnahandledError(Box<dyn std::error::Error>),
+
+    #[error("Websocket error: {0}")]
+    WebsocketError(#[from] tungstenite::Error),
+
+    #[error("Json format error: {0}")]
+    JsonformatError(#[from] serde_json::Error),
+
+    #[error("Connection error: {0}")]
+    ConnectionError(String),
 }
 
 impl From<reqwest::Error> for Error {
