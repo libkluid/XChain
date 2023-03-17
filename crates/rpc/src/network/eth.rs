@@ -153,7 +153,10 @@ mod tests {
         let options = NetworkOptions {
             radix: 16,
             oneshot: Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public")),
-            subscription: Some(Rc::new(WebsocketChannel::subscription("wss://mainnet.infura.io/ws/v3/8373ce611754454884132be22b562e45"))),
+            subscription: Some(Rc::new(WebsocketChannel::subscription(
+                "wss://mainnet.infura.io/ws/v3/8373ce611754454884132be22b562e45",
+                std::time::Duration::from_secs(30)
+            ))),
         };
         let network = EthereumNetwork::new(options);
         network

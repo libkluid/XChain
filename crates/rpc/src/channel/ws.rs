@@ -1,5 +1,6 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use std::time::Duration;
 use futures::lock::Mutex;
 use futures::{SinkExt, StreamExt};
 use tokio::net::TcpStream;
@@ -32,12 +33,13 @@ impl WebsocketChannel {
         }
     }
 
-    pub fn subscription<E>(endpoint: E) -> WebsocketSubscriptionChannel
+    pub fn subscription<E>(endpoint: E, heartbeat: Duration) -> WebsocketSubscriptionChannel
     where
         E: Into<String>,
     {
         WebsocketSubscriptionChannel {
             endpoint: endpoint.into(),
+            heartbeat,
         }
     }
 }
@@ -94,6 +96,7 @@ impl OneshotChannel for WebsocketOneshotChannel {
 
 pub struct WebsocketSubscriptionChannel {
     endpoint: String,
+    heartbeat: Duration,
 }
 
 impl WebsocketSubscriptionChannel {
@@ -173,9 +176,10 @@ impl SubscriptionChannel for WebsocketSubscriptionChannel {
         writer.send(send_message).await?;
         let _response = reader.next().await.ok_or(Error::ResponseDroppedError)?;
 
+        let heartbeat = self.heartbeat;
         tokio::spawn(async move {
             loop {
-                tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+                tokio::time::sleep(heartbeat).await;
                 let message = tungstenite::Message::Ping(Vec::new());
                 writer.send(message).await.ok();
             }
