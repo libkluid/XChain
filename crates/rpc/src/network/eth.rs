@@ -155,8 +155,7 @@ mod tests {
             oneshot: Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public")),
             subscription: Some(Rc::new(WebsocketChannel::subscription(
                 "wss://mainnet.infura.io/ws/v3/8373ce611754454884132be22b562e45",
-                std::time::Duration::from_secs(30)
-            ))),
+                std::time::Duration::from_secs(30)))),
         };
         let network = EthereumNetwork::new(options);
         network
@@ -194,8 +193,8 @@ mod tests {
     async fn requests_ethereum_code() {
         const MULTICALL2: &'static str = "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696";
         let network = setup_ethereum_network();
-        let gas_price = network.code(MULTICALL2).await.unwrap();
-        assert!(dbg!(gas_price.len()) > 0);
+        let code = network.code(MULTICALL2).await.unwrap();
+        assert!(dbg!(code.len()) > 0);
     }
 
     #[tokio::test]

@@ -31,3 +31,6 @@ features = ["derive"]
 [dependencies.tokio]
 version = "1"
 features = ["full"]
+
+[dev-dependencies]
+testcontainers = "0.14"

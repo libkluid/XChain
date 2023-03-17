@@ -191,16 +191,30 @@ impl SubscriptionChannel for WebsocketSubscriptionChannel {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::jsonrpc::{JsonRpc, Id};
     use crate::channel::OneshotChannel;
 
+    use testcontainers::images::generic::GenericImage;
+    use testcontainers::clients::Cli;
+    use testcontainers::core::WaitFor;
+
+    fn ganache() -> GenericImage {
+        GenericImage::new("trufflesuite/ganache", "v7.7.7")
+            .with_exposed_port(8545)
+            .with_wait_for(WaitFor::StdOutMessage { message: "ganache".to_string() })
+    }
+
     #[tokio::test]
     async fn test_websocket_channel() {
-        let channel = WebsocketChannel::oneshot("wss://ws.wemix.com");
+        let docker = Cli::docker();
+        let container = docker.run(ganache());
+
+        let endpoint = format!("ws://localhost:{}", container.get_host_port_ipv4(8545));
+
+        let channel = WebsocketChannel::oneshot(endpoint);
         let jsonrpc = JsonRpc::format(
             Id::Num(1),
             "eth_blockNumber",

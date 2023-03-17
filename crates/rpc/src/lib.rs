@@ -14,6 +14,9 @@ extern crate serde_json;
 #[macro_use]
 extern crate thiserror;
 extern crate tokio_tungstenite;
+#[cfg(test)]
+extern crate testcontainers;
+
 
 pub use jsonrpc::JsonRpc;
 pub use error::Error;
