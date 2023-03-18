@@ -4,7 +4,7 @@ use crate::eth::signature::encode_4bytes;
 
 pub struct EthereumFunction {
     pub name: String,
-    selector: String,
+    selector: [u8; 4],
     arg_codec: Box<dyn ethabi::Codec>,
     ret_codec: Box<dyn ethabi::Codec>,
 }
@@ -25,19 +25,19 @@ impl EthereumFunction {
         Ok(function)
     }
 
-    pub(crate) fn encode(&self, value: Vec<Value>) -> Result<String, Error> {
+    pub fn encode(&self, value: Vec<Value>) -> Result<Vec<u8>, Error> {
         let tuple = Value::Tuple(value);
         let encoded = match self.arg_codec.encode(&tuple) {
-            Ok(encoded) => hex::encode(encoded),
+            Ok(encoded) => encoded,
             Err(ethabi::Error::InvalidData) => Err(Error::InvalidData)?,
             Err(ethabi::Error::Hex(hex_error)) => Err(hex_error)?,
             Err(uncaught_error) => panic!("uncaught error: {:?}", uncaught_error),
         };
 
-        Ok(["0x", self.selector.as_str(), encoded.as_str()].concat())
+        Ok([self.selector.as_slice(), encoded.as_slice()].concat())
     }
 
-    pub(crate) fn decode(&self, data: &str) -> Result<Vec<Value>, Error> {
+    pub fn decode(&self, data: &str) -> Result<Vec<Value>, Error> {
         let bytes = hex::decode(data)?;
 
         let decoded = match self.ret_codec.decode(&bytes) {
@@ -64,7 +64,7 @@ mod tests {
         let returns = &["uint256"];
         let function = EthereumFunction::new("balanceOf", args, returns).unwrap();
         assert_eq!(function.name, "balanceOf");
-        assert_eq!(function.selector, "70a08231");
+        assert_eq!(function.selector, [0x70, 0xa0, 0x82, 0x31]);
     }
 
     #[test]
@@ -77,7 +77,7 @@ mod tests {
         let encoded = function.encode(vec![Value::Address(zero_address.to_string())]).unwrap();
         assert_eq!(
             encoded,
-            "0x70a082310000000000000000000000000000000000000000000000000000000000000000"
+            hex::decode("70a082310000000000000000000000000000000000000000000000000000000000000000").unwrap(),
         )
     }
 

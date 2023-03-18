@@ -20,7 +20,8 @@ impl EthereumContract {
 
 impl EthereumContract {
     pub async fn invoke(&self, function: &EthereumFunction, args: Vec<Value>) -> Result<Vec<Value>, Error> {
-        let data = function.encode(args)?;
+        let hex_data = function.encode(args)?;
+        let data = format!("0x{}", hex::encode(hex_data));
         let response = match self.network.call(self.address.as_str(), data.as_str()).await {
             Ok(response) => response,
             Err(rpc_error) => Err(Error::RpcError(rpc_error))?,
