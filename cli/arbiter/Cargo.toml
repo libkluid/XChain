@@ -1,0 +1,27 @@
+[package]
+name = "arbiter"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+contracts = { path = "../../crates/contracts" }
+ethabi = { path = "../../crates/ethabi" }
+rpc = { path = "../../crates/rpc" }
+itertools = "0.10"
+hex = "0.4"
+log  = "0.4"
+log4rs = "1"
+serde_json = "1"
+
+[dependencies.futures]
+version = "0.3"
+
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
+[dependencies.tokio]
+version = "1"
+features = ["full"]
