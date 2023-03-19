@@ -26,8 +26,7 @@ impl EthereumContract {
             Ok(response) => response,
             Err(rpc_error) => Err(Error::RpcError(rpc_error))?,
         };
-        let hex_response = hex::encode(response);
-        let result = function.decode(hex_response.as_str())?;
+        let result = function.decode(response.as_slice())?;
         Ok(result)
     }
 }

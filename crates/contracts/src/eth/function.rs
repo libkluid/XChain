@@ -37,10 +37,8 @@ impl EthereumFunction {
         Ok([self.selector.as_slice(), encoded.as_slice()].concat())
     }
 
-    pub fn decode(&self, data: &str) -> Result<Vec<Value>, Error> {
-        let bytes = hex::decode(data)?;
-
-        let decoded = match self.ret_codec.decode(&bytes) {
+    pub fn decode(&self, bytes: &[u8]) -> Result<Vec<Value>, Error> {
+        let decoded = match self.ret_codec.decode(bytes) {
             Ok(decoded) => decoded,
             Err(ethabi::Error::InvalidData) => Err(Error::InvalidData)?,
             Err(ethabi::Error::Hex(hex_error)) => Err(hex_error)?,
@@ -87,8 +85,8 @@ mod tests {
         let returns = &["uint256"];
         let function = EthereumFunction::new("balanceOf", args, returns).unwrap();
 
-        let one = "0000000000000000000000000000000000000000000000000000000000000001";
-        let decoded = function.decode(one).unwrap();
+        let one = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+        let decoded = function.decode(&one).unwrap();
         assert_eq!(
             decoded,
             vec![Value::UInt(1_usize.into())],
