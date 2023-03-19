@@ -1,18 +1,22 @@
 use std::rc::Rc;
 use ethabi::Value;
 use rpc::network::EthereumNetwork;
+use rpc::channel::OneshotChannel;
+use rpc::jsonrpc;
 use crate::Error;
 use crate::eth::EthereumFunction;
 
 pub struct EthereumContract {
     network: Rc<EthereumNetwork>,
+    channel: Rc<dyn OneshotChannel<Output=jsonrpc::Response>>,
     address: String,
 }
 
 impl EthereumContract {
-    pub fn new(network: Rc<EthereumNetwork>, address: &str) -> Self {
+    pub fn new(network: Rc<EthereumNetwork>, channel: Rc<dyn OneshotChannel<Output=jsonrpc::Response>>, address: &str) -> Self {
         Self {
-            network: network,
+            network,
+            channel,
             address: address.to_string(),
         }
     }
@@ -22,7 +26,7 @@ impl EthereumContract {
     pub async fn invoke(&self, function: &EthereumFunction, args: Vec<Value>) -> Result<Vec<Value>, Error> {
         let hex_data = function.encode(args)?;
         let data = format!("0x{}", hex::encode(hex_data));
-        let response = match self.network.call(self.address.as_str(), data.as_str()).await {
+        let response = match self.network.call(self.channel.as_ref(), self.address.as_str(), data.as_str()).await {
             Ok(response) => response,
             Err(rpc_error) => Err(Error::RpcError(rpc_error))?,
         };
@@ -41,17 +45,16 @@ mod test {
 
     #[tokio::test]
     async fn test_contract_invoke() {
-        let blockpi_channel = Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public"));
+        let channel = Rc::new(HttpChannel::new("https://ethereum.blockpi.network/v1/rpc/public"));
         let options = NetworkOptions {
             radix: 16,
-            oneshot: blockpi_channel,
-            subscription: None,
         };
         let network = Rc::new(EthereumNetwork::new(options));
 
         const USDT: &'static str = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
         let contract = EthereumContract::new(
             network,
+            channel,
             USDT,
         );
 
