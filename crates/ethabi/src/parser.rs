@@ -328,11 +328,11 @@ mod tests {
             bytes,
             codec.encode(&Value::Tuple(vec![
                 Value::Array(vec![
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
                 ]),
                 Value::Array(vec![
                     Value::UInt(1_u8.into()),
@@ -342,8 +342,8 @@ mod tests {
                     Value::UInt(5_u8.into()),
                 ]),
                 Value::Array(vec![
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
                 ]),
                 Value::Array(vec![
                     Value::UInt(20_u8.into()),
@@ -431,11 +431,11 @@ mod tests {
             value,
             Value::Tuple(vec![
                 Value::Array(vec![
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
                 ]),
                 Value::Array(vec![
                     Value::UInt(1_u8.into()),
@@ -445,8 +445,8 @@ mod tests {
                     Value::UInt(5_u8.into()),
                 ]),
                 Value::Array(vec![
-                    Value::Address("1111111111111111111111111111111111111111".into()),
-                    Value::Address("2222222222222222222222222222222222222222".into()),
+                    Value::address("1111111111111111111111111111111111111111").unwrap(),
+                    Value::address("2222222222222222222222222222222222222222").unwrap(),
                 ]),
                 Value::Array(vec![
                     Value::UInt(20_u8.into()),

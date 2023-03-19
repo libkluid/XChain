@@ -72,7 +72,7 @@ mod tests {
         let function = EthereumFunction::new("balanceOf", args, returns).unwrap();
 
         let zero_address = "0000000000000000000000000000000000000000";
-        let encoded = function.encode(vec![Value::Address(zero_address.to_string())]).unwrap();
+        let encoded = function.encode(vec![Value::address(zero_address).unwrap()]).unwrap();
         assert_eq!(
             encoded,
             hex::decode("70a082310000000000000000000000000000000000000000000000000000000000000000").unwrap(),

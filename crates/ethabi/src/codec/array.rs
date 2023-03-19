@@ -315,7 +315,7 @@ mod tests {
         let value = Value::Tuple(vec![
             Value::Array(vec![
                 Value::Tuple(vec![
-                    Value::Address("0xe1f36c7b919c9f893e2cd30b471434aa2494664a".to_string()),
+                    Value::address("e1f36c7b919c9f893e2cd30b471434aa2494664a").unwrap(),
                     Value::Bytes(hex::decode(concat!(
                         "e6a43905",
                         "0000000000000000000000008e81fcc2d4a3baa0ee9044e0d7e36f59c9bba9c1",

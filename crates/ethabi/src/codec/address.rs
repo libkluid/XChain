@@ -12,7 +12,7 @@ impl sealed::Decoder for AddressCodec {
     fn decode_frame(&self, bytes: &[u8], offset: usize) -> Result<Value, Error> {
         let frame = &bytes[offset..];
         if frame.len() >= 20 {
-            Ok(Value::Address(hex::encode(&frame[12..32])))
+            Ok(Value::Address(frame[12..32].to_vec()))
         } else {
             Err(Error::InvalidData)
         }
@@ -23,7 +23,7 @@ impl sealed::Decoder for AddressCodec {
 impl sealed::Encoder for AddressCodec {
     fn encode_frame(&self, value: &Value) -> Result<Vec<u8>, Error> {
         let address = value.as_address()?;
-        let address = strip_hex(address);
+        let address = strip_hex(address.as_str());
 
         if address.len() == 40 {
             encode_address(address)
@@ -61,7 +61,7 @@ mod tests {
         )).unwrap();
         assert_eq!(
             bytes,
-            AddressCodec.encode(&Value::Address("feedfacefeedfacefeedfacefeedfacefeedface".to_string())).unwrap()
+            AddressCodec.encode(&Value::address("feedfacefeedfacefeedfacefeedfacefeedface").unwrap()).unwrap()
         );
     }
 
@@ -71,7 +71,7 @@ mod tests {
             "000000000000000000000000FEEDFACEFEEDFACEFEEDFACEFEEDFACEFEEDFACE",
         )).unwrap();
         assert_eq!(
-            Value::Address("feedfacefeedfacefeedfacefeedfacefeedface".to_string()),
+            Value::address("feedfacefeedfacefeedfacefeedfacefeedface").unwrap(),
             AddressCodec.decode(&bytes).unwrap()
         );
     }

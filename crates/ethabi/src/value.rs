@@ -3,7 +3,7 @@ use crate::Error;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Value {
-    Address(String),
+    Address(Vec<u8>),
     Boolean(bool),
     Int(BigInt),
     UInt(BigUint),
@@ -13,10 +13,26 @@ pub enum Value {
     Tuple(Vec<Value>),
 }
 
+fn strip_hex(hex: &str) -> &str {
+    match hex.starts_with("0x") {
+        true => &hex[2..],
+        false => hex,
+    }
+}
+
 impl Value {
-    pub fn as_address(&self) -> Result<&str, Error> {
+    pub fn address(hex_address: &str) -> Result<Self, Error> {
+        let hex_address = strip_hex(hex_address);
+        let address = hex::decode(hex_address)?;
+        Ok(Value::Address(address))
+    }
+
+    pub fn as_address(&self) -> Result<String, Error> {
         match self {
-            Value::Address(address) => Ok(address),
+            Value::Address(address) => {
+                let hex_address = hex::encode(address);
+                Ok(String::from(["0x", hex_address.as_str()].concat()))
+            }
             _ => Err(Error::InvalidData),
         }
     }

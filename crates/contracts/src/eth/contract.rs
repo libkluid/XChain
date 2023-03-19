@@ -9,7 +9,7 @@ use crate::eth::EthereumFunction;
 pub struct EthereumContract {
     network: Rc<EthereumNetwork>,
     channel: Rc<dyn OneshotChannel<Output=jsonrpc::Response>>,
-    address: String,
+    pub address: String,
 }
 
 impl EthereumContract {
