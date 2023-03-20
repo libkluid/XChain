@@ -1,5 +1,6 @@
 use ethabi::Value;
 use contracts::eth::{EthereumContract, EthereumFunction};
+use rpc::jsonrpc::Tag;
 
 use crate::Token;
 
@@ -20,7 +21,7 @@ impl<'n> WemixFi<'n> {
         let router = EthereumContract::new(wemix.network.clone(), wemix.channel.clone(), router_address);
         let router = WemixRouter::new(wemix, router);
 
-        let factory = router.factory().await;
+        let factory = router.factory(Tag::Latest).await;
 
         Self {
             wemix,
@@ -46,13 +47,13 @@ impl<'n> WemixRouter<'n> {
         }
     }
 
-    async fn weth(&self) -> String {
-        let values = self.router.invoke(&self.factory, vec![]).await.unwrap();
+    async fn weth(&self, tag: Tag) -> String {
+        let values = self.router.invoke(&self.factory, vec![], tag).await.unwrap();
         values[0].as_address().unwrap().to_string()
     }
 
-    async fn factory(&self) -> WemixFactory<'n> {
-        let values = self.router.invoke(&self.factory, vec![]).await.unwrap();
+    async fn factory(&self, tag: Tag) -> WemixFactory<'n> {
+        let values = self.router.invoke(&self.factory, vec![], tag).await.unwrap();
         let address = values[0].as_address().unwrap();
         let factory = EthereumContract::new(self.wemix.network.clone(), self.wemix.channel.clone(), address.as_str());
 
@@ -76,7 +77,7 @@ impl<'n> WemixFactory<'n> {
         }
     }
 
-    pub async fn pair(&self, token0: Token, token1: Token) -> WemixPair<'n> {
+    pub async fn pair(&self, token0: Token, token1: Token, tag: Tag) -> WemixPair<'n> {
         let (token0, token1) = if token0 < token1 {
             (token0, token1)
         } else {
@@ -84,7 +85,7 @@ impl<'n> WemixFactory<'n> {
         };
         
         let args = [token0.clone(), token1.clone()].into_iter().map(|t| Value::address(&t.address).unwrap()).collect::<Vec<_>>();
-        let values = self.factory.invoke(&self.get_pair, args).await.unwrap();
+        let values = self.factory.invoke(&self.get_pair, args, tag).await.unwrap();
         let address = values[0].as_address().unwrap();
         let pair = EthereumContract::new(self.wemix.network.clone(), self.wemix.channel.clone(), address.as_str());
 

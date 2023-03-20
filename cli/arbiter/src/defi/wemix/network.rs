@@ -2,7 +2,7 @@ use std::rc::Rc;
 use ethabi::num_traits::ToPrimitive;
 use ethabi::Value;
 use contracts::eth::{EthereumContract, EthereumFunction};
-use rpc::jsonrpc::Response;
+use rpc::jsonrpc::{Response, Tag};
 use rpc::channel::{OneshotChannel};
 use rpc::network::{NetworkOptions, EthereumNetwork};
 
@@ -56,7 +56,7 @@ impl WemixNetwork {
                 ]),
             ]);
 
-            let response = multicall.invoke(&aggregate, vec![args]).await.unwrap();
+            let response = multicall.invoke(&aggregate, vec![args], Tag::Latest).await.unwrap();
             let _block = response[0].as_uint().unwrap();
             let bytes_array = response[1].as_array().unwrap();
             
@@ -72,9 +72,9 @@ impl WemixNetwork {
             }
         } else {
             let erc20 = EthereumContract::new(self.network.clone(), self.channel.clone(), address.as_str());
-            let name = erc20.invoke(&name, vec![]).await.unwrap()[0].as_string().unwrap().to_string();
-            let symbol = erc20.invoke(&symbol, vec![]).await.unwrap()[0].as_string().unwrap().to_string();
-            let decimals = erc20.invoke(&decimals, vec![]).await.unwrap()[0].as_uint().unwrap().to_u8().unwrap();
+            let name = erc20.invoke(&name, vec![], Tag::Latest).await.unwrap()[0].as_string().unwrap().to_string();
+            let symbol = erc20.invoke(&symbol, vec![], Tag::Latest).await.unwrap()[0].as_string().unwrap().to_string();
+            let decimals = erc20.invoke(&decimals, vec![], Tag::Latest).await.unwrap()[0].as_uint().unwrap().to_u8().unwrap();
 
             Token {
                 address,

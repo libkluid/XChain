@@ -3,6 +3,7 @@ use arbiter::Token;
 use contracts::eth::EthereumFunction;
 use itertools::Itertools;
 use ethabi::{Value, num_bigint::BigUint};
+use rpc::jsonrpc::Tag;
 
 #[tokio::main]
 async fn main() {
@@ -39,7 +40,7 @@ async fn main() {
     log::info!("Fetching all combinations...");
     let mut pairs = vec![];
     for pair in tokens.iter().combinations(2) {
-        let pair = wemixfi.factory.pair(pair[0].clone(), pair[1].clone()).await;
+        let pair = wemixfi.factory.pair(pair[0].clone(), pair[1].clone(), Tag::Latest).await;
 
         if pair.address() != "0x0000000000000000000000000000000000000000" {
             pairs.push(pair);
@@ -68,7 +69,7 @@ async fn main() {
     let quota = 120;
     let mut fps = arbiter::util::Fps::new(quota);
     loop {
-        let results = multicall.invoke(&aggregate, args.clone()).await.unwrap();
+        let results = multicall.invoke(&aggregate, args.clone(), Tag::Pending).await.unwrap();
         let block_number = results[0].as_uint().unwrap();
         let elapsed = fps.tick();
 
