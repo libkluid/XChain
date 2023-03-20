@@ -1,3 +1,4 @@
+use ethabi::num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 
 fn strip_hex(hex: &str) -> &str {
@@ -31,6 +32,14 @@ impl Token {
 
     pub fn decimals(&self) -> u8 {
         self.decimals
+    }
+
+    pub fn decimalize(&self, amount: &BigUint) -> String {
+        let decimals = BigUint::from(10_usize).pow(self.decimals().into());
+        let significand = amount / &decimals;
+        let mantissa = amount % &decimals;
+
+        format!("{}.{}", significand, mantissa).parse().unwrap()
     }
 }
 

@@ -1,7 +1,8 @@
 extern crate arbiter;
+use arbiter::Token;
 use contracts::eth::EthereumFunction;
 use itertools::Itertools;
-use ethabi::Value;
+use ethabi::{Value, num_bigint::BigUint};
 
 #[tokio::main]
 async fn main() {
@@ -64,13 +65,35 @@ async fn main() {
     }).collect::<Vec<_>>();
     let args = vec![Value::Array(values)];
 
+    let quota = 120;
+    let mut fps = arbiter::util::Fps::new(quota);
     loop {
-        let instant = std::time::Instant::now();
         let results = multicall.invoke(&aggregate, args.clone()).await.unwrap();
         let block_number = results[0].as_uint().unwrap();
-        log::info!("Block: {}", block_number);
+        let elapsed = fps.tick();
 
         let reserves = results[1].as_array().unwrap();
+        // calculate wemix price
+        let wemix_exchange = {
+            let bytes = reserves[0].as_bytes().unwrap();
+            let wemix_dollar_reserve = get_reserves.decode(bytes).unwrap();
+            let reserve_wemix = wemix_dollar_reserve[0].as_uint().unwrap();
+            let reserve_dollar = wemix_dollar_reserve[1].as_uint().unwrap();
+            let wemix_exchange = quote(&tokens[0], reserve_wemix, reserve_dollar);
+            wemix_exchange
+        };
+
+        let wemix_price = {
+            let wemix_dollar = &tokens[1];
+            let wemix_dollar_decimals = BigUint::from(10_u32).pow(wemix_dollar.decimals().into());
+
+            let significant = (&wemix_exchange / &wemix_dollar_decimals).to_string();
+            let mantissa = (&wemix_exchange % &wemix_dollar_decimals).to_string();
+            format!("{}.{}", significant, &mantissa[..6])
+        };
+        log::info!("---");
+        log::info!("BLOCK: {}, WEMIX: ${}, FPS: {:.2}", block_number, wemix_price, elapsed);
+
         for (index, pair) in pairs.iter().enumerate() {
             let token0 = pair.token0();
             let token1 = pair.token1();
@@ -80,9 +103,16 @@ async fn main() {
             let reserves = get_reserves.decode(bytes).unwrap();
             let reserve0 = reserves[0].as_uint().unwrap();
             let reserve1 = reserves[1].as_uint().unwrap();
-            log::info!("{:<16} {} = {} {} = {}", pair_name, token0.symbol(), reserve0, token1.symbol(), reserve1);
+
+            let amount0 = token0.decimalize(reserve0);
+            let amount1 = token1.decimalize(reserve1);
+            log::info!("{:<16} {} = {} {} = {}", pair_name, token0.symbol(), amount0, token1.symbol(), amount1);
         }
-        let elapsed = instant.elapsed();
-        log::debug!("RPS: {:.2}", 1_000_000_f64 / elapsed.as_micros() as f64);
     }
+}
+
+fn quote(token0: &Token, reserve0: &BigUint, reserve1: &BigUint) -> BigUint {
+    let decimals_wemix = BigUint::from(10u32).pow(token0.decimals().into());
+    let wemix_exchange = reserve1 * decimals_wemix / reserve0;
+    wemix_exchange
 }
