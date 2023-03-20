@@ -5,7 +5,7 @@ use crate::Error;
 use crate::channel;
 use crate::channel::OneshotChannel;
 use crate::channel::{Subscriber, SubscriptionChannel};
-use crate::jsonrpc::{self, JsonRpc};
+use crate::jsonrpc::{self, JsonRpc, Tag};
 use crate::network::NetworkOptions;
 
 pub struct EthereumNetwork {
@@ -50,20 +50,20 @@ impl EthereumNetwork {
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn code(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str) -> Result<Vec<u8>, Error> {
-        let params = json!([address,  "latest"]);
+    pub async fn code(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<Vec<u8>, Error> {
+        let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getCode", params);
         expect_bytes_response(jsonrpc, channel).await
     }
 
-    pub async fn balance(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str) -> Result<BigInt, Error> {
-        let params = json!([address,  "latest"]);
+    pub async fn balance(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<BigInt, Error> {
+        let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getBalance", params);
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn transaction_count(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str) -> Result<BigInt, Error> {
-        let params = json!([address,  "latest"]);
+    pub async fn transaction_count(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<BigInt, Error> {
+        let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionCount", params);
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
@@ -77,13 +77,13 @@ impl EthereumNetwork {
         expect_json_response::<D>(jsonrpc, channel).await
     }
 
-    pub async fn call(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, to: &str, data: &str) -> Result<Vec<u8>, Error> {
+    pub async fn call(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, to: &str, data: &str, tag: Tag) -> Result<Vec<u8>, Error> {
         let params = json!([
             {
                 "to": to,
                 "data": data,
             },
-            "latest",
+            tag,
         ]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_call", params);
         expect_bytes_response(jsonrpc, channel).await
@@ -147,6 +147,7 @@ mod tests {
     use super::EthereumNetwork;
     use crate::network::NetworkOptions;
     use crate::JsonRpc;
+    use crate::jsonrpc::Tag;
     use crate::channel::SubscriptionChannel;
     use crate::channel::{HttpChannel, WebsocketChannel};
 
@@ -202,7 +203,7 @@ mod tests {
         let network = ethereum_network();
 
         const MULTICALL2: &'static str = "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696";
-        let code = network.code(&channel ,MULTICALL2).await.unwrap();
+        let code = network.code(&channel ,MULTICALL2, Tag::Latest).await.unwrap();
         assert!(dbg!(code.len()) > 0);
     }
 
@@ -212,7 +213,7 @@ mod tests {
         let network = ethereum_network();
 
         const WETH: &'static str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-        let balance = network.balance(&channel, WETH).await.unwrap();
+        let balance = network.balance(&channel, WETH, Tag::Latest).await.unwrap();
         assert!(dbg!(balance) > BigInt::zero());
     }
 
@@ -237,7 +238,7 @@ mod tests {
         let network = ethereum_network();
 
         const WETH: &'static str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
-        let transaction_count = network.transaction_count(&channel, WETH).await.unwrap();
+        let transaction_count = network.transaction_count(&channel, WETH, Tag::Latest).await.unwrap();
         assert!(dbg!(transaction_count) > BigInt::zero());
     }
 
@@ -250,7 +251,8 @@ mod tests {
         let response = network.call(
             &channel, 
             WETH,
-            "0x95d89b41"
+            "0x95d89b41",
+            Tag::Latest,
         ).await.unwrap();
         assert_eq!(dbg!(response.len()), 96);
     }
