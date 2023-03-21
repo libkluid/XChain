@@ -5,6 +5,7 @@ extern crate hex;
 extern crate log;
 extern crate num_bigint;
 extern crate num_traits;
+extern crate parking_lot;
 #[macro_use]
 extern crate pin_project;
 extern crate reqwest;
