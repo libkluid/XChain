@@ -90,10 +90,10 @@ mod tests {
 
         for _ in 0..2 {
             let wemix_chain_id = network.chain_id(&roundrobit).await.unwrap();
-            assert_eq!(wemix_chain_id, 1111.into());
+            assert_eq!(wemix_chain_id.unwrap(), 1111.into());
 
             let klaytn_chain_id = network.chain_id(&roundrobit).await.unwrap();
-            assert_eq!(klaytn_chain_id, 8217.into());
+            assert_eq!(klaytn_chain_id.unwrap(), 8217.into());
         }
     }
 }

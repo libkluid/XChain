@@ -26,17 +26,17 @@ impl EthereumNetwork {
         self.sequence.replace(next_value)
     }
 
-    pub async fn chain_id(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<BigInt, Error> {
+    pub async fn chain_id(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<Option<BigInt>, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_chainId", json!(null));
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn block_number(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<BigInt, Error> {
+    pub async fn block_number(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<Option<BigInt>, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_blockNumber", json!(null));
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn block_by_number<D>(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, number: u64) -> Result<D, Error>
+    pub async fn block_by_number<D>(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, number: u64) -> Result<Option<D>, Error>
     where
         for <'de> D: serde::Deserialize<'de>
     {
@@ -45,30 +45,30 @@ impl EthereumNetwork {
         expect_json_response::<D>(jsonrpc, channel).await
     }
 
-    pub async fn gas_price(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<BigInt, Error> {
+    pub async fn gas_price(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>) -> Result<Option<BigInt>, Error> {
         let jsonrpc = JsonRpc::format(self.advance(), "eth_gasPrice", json!(null));
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn code(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<Vec<u8>, Error> {
+    pub async fn code(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<Option<Vec<u8>>, Error> {
         let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getCode", params);
         expect_bytes_response(jsonrpc, channel).await
     }
 
-    pub async fn balance(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<BigInt, Error> {
+    pub async fn balance(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<Option<BigInt>, Error> {
         let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getBalance", params);
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn transaction_count(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<BigInt, Error> {
+    pub async fn transaction_count(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, address: &str, tag: Tag) -> Result<Option<BigInt>, Error> {
         let params = json!([address,  tag]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getTransactionCount", params);
         expect_bigint_response(jsonrpc, channel, self.options.radix).await
     }
 
-    pub async fn transaction_receipt<D>(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, hash: &str) -> Result<D, Error>
+    pub async fn transaction_receipt<D>(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, hash: &str) -> Result<Option<D>, Error>
     where
         for <'de> D: serde::Deserialize<'de>
     {
@@ -77,7 +77,7 @@ impl EthereumNetwork {
         expect_json_response::<D>(jsonrpc, channel).await
     }
 
-    pub async fn call(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, to: &str, data: &str, tag: Tag) -> Result<Vec<u8>, Error> {
+    pub async fn call(&self, channel: &dyn OneshotChannel<Output=jsonrpc::Response>, to: &str, data: &str, tag: Tag) -> Result<Option<Vec<u8>>, Error> {
         let params = json!([
             {
                 "to": to,
@@ -97,19 +97,19 @@ impl EthereumNetwork {
     }
 }
 
-async fn expect_bigint_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>, radix: u32) -> Result<BigInt, Error> {
+async fn expect_bigint_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>, radix: u32) -> Result<Option<BigInt>, Error> {
     let response = channel.fire(&jsonrpc).await?;
     let result = response.as_result::<String>()?;
-    bigint_from_hex(result, radix)
+    result.map(|result | bigint_from_hex(result, radix)).transpose()
 }
 
-async fn expect_bytes_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<Vec<u8>, Error> {
+async fn expect_bytes_response(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<Option<Vec<u8>>, Error> {
     let response = channel.fire(&jsonrpc).await?;
     let result = response.as_result::<String>()?;
-    bytes_from_hex(result)
+    result.map(|result| bytes_from_hex(result)).transpose()
 }
 
-async fn expect_json_response<D>(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<D, Error>
+async fn expect_json_response<D>(jsonrpc: JsonRpc, channel: &dyn channel::OneshotChannel<Output=jsonrpc::Response>) -> Result<Option<D>, Error>
 where
     for <'de> D: serde::Deserialize<'de>
 {
@@ -170,7 +170,7 @@ mod tests {
         let channel = oneshot_channel();
         let network = ethereum_network();
         let chain_id = network.chain_id(&channel).await.unwrap();
-        assert!(dbg!(chain_id) > BigInt::zero());
+        assert!(dbg!(chain_id.unwrap()) > BigInt::zero());
     }
 
     #[tokio::test]
@@ -178,7 +178,7 @@ mod tests {
         let channel = oneshot_channel();
         let network = ethereum_network();
         let block_number = network.block_number(&channel).await.unwrap();
-        assert!(dbg!(block_number) > BigInt::zero());
+        assert!(dbg!(block_number.unwrap()) > BigInt::zero());
     }
 
     #[tokio::test]
@@ -186,7 +186,7 @@ mod tests {
         let channel = oneshot_channel();
         let network = ethereum_network();
         let block = network.block_by_number::<serde_json::Value>(&channel, 1).await.unwrap();
-        assert!(dbg!(block).is_object());
+        assert!(dbg!(block.unwrap() ).is_object());
     }
 
     #[tokio::test]
@@ -194,7 +194,7 @@ mod tests {
         let channel = oneshot_channel();
         let network = ethereum_network();
         let gas_price = network.gas_price(&channel).await.unwrap();
-        assert!(dbg!(gas_price) > BigInt::zero());
+        assert!(dbg!(gas_price.unwrap()) > BigInt::zero());
     }
 
     #[tokio::test]
@@ -204,7 +204,7 @@ mod tests {
 
         const MULTICALL2: &'static str = "0x5BA1e12693Dc8F9c48aAD8770482f4739bEeD696";
         let code = network.code(&channel ,MULTICALL2, Tag::Latest).await.unwrap();
-        assert!(dbg!(code.len()) > 0);
+        assert!(dbg!(code.unwrap().len()) > 0);
     }
 
     #[tokio::test]
@@ -214,7 +214,7 @@ mod tests {
 
         const WETH: &'static str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
         let balance = network.balance(&channel, WETH, Tag::Latest).await.unwrap();
-        assert!(dbg!(balance) > BigInt::zero());
+        assert!(dbg!(balance.unwrap()) > BigInt::zero());
     }
 
     #[tokio::test]
@@ -239,7 +239,7 @@ mod tests {
 
         const WETH: &'static str = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2";
         let transaction_count = network.transaction_count(&channel, WETH, Tag::Latest).await.unwrap();
-        assert!(dbg!(transaction_count) > BigInt::zero());
+        assert!(dbg!(transaction_count.unwrap()) > BigInt::zero());
     }
 
     #[tokio::test]
@@ -254,6 +254,6 @@ mod tests {
             "0x95d89b41",
             Tag::Latest,
         ).await.unwrap();
-        assert_eq!(dbg!(response.len()), 96);
+        assert_eq!(dbg!(response.unwrap().len()), 96);
     }
 }

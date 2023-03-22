@@ -23,15 +23,14 @@ impl EthereumContract {
 }
 
 impl EthereumContract {
-    pub async fn invoke(&self, function: &EthereumFunction, args: Vec<Value>, tag: jsonrpc::Tag) -> Result<Vec<Value>, Error> {
+    pub async fn invoke(&self, function: &EthereumFunction, args: Vec<Value>, tag: jsonrpc::Tag) -> Result<Option<Vec<Value>>, Error> {
         let hex_data = function.encode(args)?;
         let data = format!("0x{}", hex::encode(hex_data));
         let response = match self.network.call(self.channel.as_ref(), self.address.as_str(), data.as_str(), tag).await {
             Ok(response) => response,
             Err(rpc_error) => Err(Error::RpcError(rpc_error))?,
         };
-        let result = function.decode(response.as_slice())?;
-        Ok(result)
+        response.map(|response| function.decode(response.as_slice())).transpose()
     }
 }
 
@@ -64,7 +63,7 @@ mod test {
             &["string"]
         ).unwrap();
 
-        let results = contract.invoke(&function, vec![], jsonrpc::Tag::Latest).await.unwrap();
+        let results = contract.invoke(&function, vec![], jsonrpc::Tag::Latest).await.unwrap().unwrap();
         let token_name = results[0].as_string().unwrap();
 
         assert_eq!(token_name, "Tether USD");

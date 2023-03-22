@@ -10,13 +10,14 @@ pub struct Response {
 }
 
 impl Response {
-    pub fn as_result<T>(self) -> Result<T, Error>
+    pub fn as_result<T>(self) -> Result<Option<T>, Error>
     where
         for <'de> T: serde::Deserialize<'de>,
     {
         match (self.result, self.error) {
             (Some(result), None) => Ok(serde_json::from_value(result).unwrap()),
             (None, Some(error)) => Err(Error::JsonRpcError(error)),
+            (None, None) => Ok(None),
             _ => panic!("Response::as_result() called on invalid response"),
         }
     }
