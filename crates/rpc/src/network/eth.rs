@@ -40,7 +40,7 @@ impl EthereumNetwork {
     where
         for <'de> D: serde::Deserialize<'de>
     {
-        let params = json!([format!("{:#x}", number), false]);
+        let params = json!([format!("{:#x}", number), true]);
         let jsonrpc = JsonRpc::format(self.advance(), "eth_getBlockByNumber", params);
         expect_json_response::<D>(jsonrpc, channel).await
     }
