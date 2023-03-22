@@ -6,6 +6,7 @@ edition = "2021"
 [workspace]
 exclude = []
 members = [
+    "cli/klay-watch",
     "crates/contracts",
     "crates/ethabi",
     "crates/rpc",
